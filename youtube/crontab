@@ -1,0 +1,2 @@
+0 * * * * /usr/bin/perl /root/sh/downloadvideos.pl > /dev/null 2>&1
+0 2 * * * /usr/bin/bash /root/sh/sync_to_baidupcs.sh > /dev/null 2>&1
