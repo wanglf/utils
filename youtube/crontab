@@ -1,2 +1,2 @@
-0 * * * * /usr/bin/perl /root/sh/downloadvideos_in_queue.pl > /dev/null 2>&1
-0 2 * * * /usr/bin/bash /root/sh/sync_to_baidupcs.sh > /dev/null 2>&1
+*/15 * * * * /usr/bin/bash /root/sh/downloadvideos_in_queue.sh >> /var/log/downloadvideos_in_queue.log 2>&1
+10 0 * * * /usr/bin/bash /root/sh/sync_to_baidupcs.sh >> /var/log/sync_to_baidupcs.log 2>&1

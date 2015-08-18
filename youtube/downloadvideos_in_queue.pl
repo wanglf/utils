@@ -143,7 +143,7 @@ sub download_file_by_url() {
         $logger->info("=====================================================================");
         &update_video_state($url, $state);
         $logger->info("start downloading file - url: $url, filename: $filename");
-        my $download = `youtube-dl -f best  -o "/opt/youtube/$filename" $url`;
+        my $download = `/usr/local/bin/youtube-dl -f best  -o "/opt/youtube/$filename" $url`;
         $logger->info("result of download - url: $url, filename: $filename");
         $logger->info("$download");
         $logger->info("=====================================================================");
@@ -153,7 +153,7 @@ sub download_file_by_url() {
 
 sub get_filename_from_url() {
         my $u = $_[0];
-        my $f = `youtube-dl --get-filename $u`;
+        my $f = `/usr/local/bin/youtube-dl --get-filename $u`;
         chomp($f);
         return $f;
 }
