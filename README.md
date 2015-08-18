@@ -1,4 +1,4 @@
 #README#
 
-repo to store some useful scripts or DIY tools
+repo of some useful scripts or DIY tools
 

@@ -10,11 +10,11 @@ main program
 
 ##log.conf##
 
-store log4perl syslog configuration
+log4perl syslog configuration
 
 ##queue.ini##
 
-store urls, script will read contents into db and set initial state.
+urls, script will read contents into db and set initial state.
 
 ##crontab##
 
@@ -22,4 +22,4 @@ crons should be added to crontab
 
 ##sync_to_baidupcs.sh##
 
-script to sync videos into baidu pcs under dir /apps/bypy/
+sync videos into baidu pcs under directory /apps/bypy/
