@@ -27,10 +27,13 @@ CREATE TABLE `videolist` (
   `url` varchar(50) NOT NULL,
   `filename` varchar(255) NOT NULL,
   `state` int(11) NOT NULL,
+  `queue_datetime` datetime DEFAULT NULL,
+  `start_datetime` datetime DEFAULT NULL,
+  `finish_datetime` datetime DEFAULT NULL,
   PRIMARY KEY (`videoId`),
   UNIQUE KEY `url` (`url`),
   UNIQUE KEY `filename` (`filename`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -39,7 +42,7 @@ CREATE TABLE `videolist` (
 
 LOCK TABLES `videolist` WRITE;
 /*!40000 ALTER TABLE `videolist` DISABLE KEYS */;
-INSERT INTO `videolist` VALUES (1,'uFMMXRoSxnA','Richard Stallman - We\'re heading for a total disaster-uFMMXRoSxnA.mp4',2),(2,'rP8As92YUX4','If OpenStack is So Awesome, Why Doesn\'t Everybody Use It - Chris Kemp, Moderator - OpenStackSV 2014-rP8As92YUX4.mp4',2),(3,'pCkzrezRmJI','Openstack 101-pCkzrezRmJI.mp4',2);
+INSERT INTO `videolist` VALUES (1,'uFMMXRoSxnA','Richard Stallman - We\'re heading for a total disaster-uFMMXRoSxnA.mp4',2,'2015-08-19 20:02:09','2015-08-19 20:02:10','2015-08-19 20:02:13'),(2,'rP8As92YUX4','If OpenStack is So Awesome, Why Doesn\'t Everybody Use It - Chris Kemp, Moderator - OpenStackSV 2014-rP8As92YUX4.mp4',2,'2015-08-19 20:02:09','2015-08-19 20:02:14','2015-08-19 20:06:21');
 /*!40000 ALTER TABLE `videolist` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -52,4 +55,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2015-08-18 11:51:51
+-- Dump completed on 2015-08-19 20:08:29

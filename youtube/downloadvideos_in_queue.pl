@@ -73,11 +73,13 @@ sub videos_enqueue() {
                         INSERT INTO `videolist` (
                                 `url`,
                                 `filename`,
-                                `state`
+                                `state`,
+                                `queue_datetime`
                                 ) VALUES (
                                         "$_[0]",
                                         "$_[1]",
-                                        "$_[2]"
+                                        "$_[2]",
+                                        NOW()
                                         )
                         });
         $sth -> execute();
@@ -85,11 +87,22 @@ sub videos_enqueue() {
 }
 
 sub update_video_state() {
-        $sth = $dbh -> prepare(qq{
-                        UPDATE `videolist` 
-                        SET `state`="$_[1]"
-                        WHERE `url`="$_[0]"
-                        });
+        if ($_[1] eq 1) {
+                $sth = $dbh -> prepare(qq{
+                                UPDATE `videolist` 
+                                SET `state`="$_[1]",
+                                `start_datetime`=NOW()
+                                WHERE `url`="$_[0]"
+                                });
+        } else {
+                $sth = $dbh -> prepare(qq{
+                                UPDATE `videolist` 
+                                SET `state`="$_[1]",
+                                `finish_datetime`=NOW()
+                                WHERE `url`="$_[0]"
+                                });
+
+        }
         $sth -> execute();
         $logger->info("update video $_[0] to state $_[1]");
 }

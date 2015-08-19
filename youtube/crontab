@@ -1,2 +1,2 @@
 */15 * * * * /usr/bin/bash /root/sh/downloadvideos_in_queue.sh >> /var/log/downloadvideos_in_queue.log 2>&1
-10 0 * * * /usr/bin/bash /root/sh/sync_to_baidupcs.sh >> /var/log/sync_to_baidupcs.log 2>&1
+0 0,14 * * * /usr/bin/bash /root/sh/sync_to_baidupcs.sh >> /var/log/sync_to_baidupcs.log 2>&1
