@@ -1,0 +1,42 @@
+% -------------------- common latex settings --------------------
+\usepackage[CJKnumber, slantfont, boldfont]{xeCJK}
+\usepackage[usenames,dvipsnames]{xcolor}
+\usepackage[normalem]{ulem}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{underscore}
+\usepackage{indentfirst}
+\usepackage{minted}
+\usepackage{textpos}
+\usepackage{tikz}
+\usepackage{enumitem}
+\usepackage[a4paper,hmargin=2cm,vmargin=2cm]{geometry}
+\setlength{\parskip}{0pt}
+\setlength{\parindent}{0pt}
+\setlist{leftmargin=2em,labelindent=2em,itemsep=0pt,topsep=0.5em,parsep=0.2em}
+\setlist[description]{leftmargin=4em,labelsep=1em,itemsep=0pt,topsep=0.5em,parsep=0.2em}
+
+\usemintedstyle{bw}
+\AtBeginEnvironment{minted}{\renewcommand{\fcolorbox}[4][]{#4}}
+
+\hypersetup{                    %
+  colorlinks=true,              % false: boxed links; true: colored links
+  linkcolor=MidnightBlue,       % color of internal links
+  citecolor=MidnightBlue,       % color of links to bibliography
+  filecolor=MidnightBlue,       % color of file links
+  urlcolor=Blue                 % color of external links
+}
+
+\setmainfont{Times New Roman}
+\setsansfont{Times New Roman}
+\setmonofont{Ubuntu Mono}
+\setCJKmainfont{WenQuanYi Micro Hei}
+\setCJKsansfont{WenQuanYi Micro Hei}
+\setCJKmonofont{WenQuanYi Micro Hei Mono}
+
+\makeatletter
+\renewcommand\paragraph{\@startsection{paragraph}{4}{\z@}       %
+  {-3.25ex \@plus -1ex \@minus -.2ex}                           %
+  {1.5ex \@plus .2ex}                                           %
+  {\normalfont\normalsize\bfseries}}
+\makeatother

@@ -1,0 +1,63 @@
+% -------------------- common slide settings --------------------
+\usepackage[CJKnumber, slantfont, boldfont]{xeCJK}
+\usepackage[normalem]{ulem}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{underscore}
+\usepackage{indentfirst}
+\usepackage{minted}
+\usepackage{textpos}
+\usepackage{tikz}
+
+\usemintedstyle{vs}
+
+% fix red-box on error code
+\AtBeginEnvironment{minted}{\renewcommand{\fcolorbox}[4][]{#4}}
+
+\setmainfont{WenQuanYi Micro Hei}
+\setsansfont{WenQuanYi Micro Hei}
+\setmonofont{Ubuntu Mono}
+\setCJKmainfont{WenQuanYi Micro Hei}
+\setCJKsansfont{WenQuanYi Micro Hei}
+\setCJKmonofont{WenQuanYi Micro Hei Mono}
+
+\usetheme{CambridgeUS}
+\setlength{\leftmargini}{1.25em}
+
+% make font in block-section smaller
+\setbeamerfont{block title}{size=\scriptsize}
+\setbeamerfont{block body}{size=\scriptsize}
+
+\definecolor{m_blue}{rgb}{0.0,0.0,0.5}
+\definecolor{m_green}{rgb}{0.0,0.3,0.3}
+\definecolor{m_white}{rgb}{0.9,0.9,0.8}
+\setbeamercolor{structure}{fg=m_white,bg=m_blue}
+\setbeamercolor{frametitle}{bg=}
+\setbeamercolor{palette primary}{fg=m_white,bg=m_blue} %H2B3
+\setbeamercolor{palette secondary}{fg=red,bg=m_white} %B2
+\setbeamercolor{palette tertiary}{fg=m_white,bg=m_green} %H1B1
+\setbeamercolor{item projected}{bg=m_blue}
+\setbeamercolor{description item}{bg=white,fg=blue}
+\setbeamercolor{navigation symbols dimmed}{fg=blue!60!white}
+\setbeamercolor{navigation symbols}{fg=blue!60!white}
+
+\setbeamertemplate{itemize item}{\Large\textcolor{blue}{$\bullet$}}
+\setbeamertemplate{itemize subitem}{\large\textcolor{red}{$\bullet$}}
+\setbeamertemplate{itemize subsubitem}{\textcolor{teal}{$\blacktriangleright$}}
+
+\setbeamertemplate{enumerate items}[default]
+\setbeamercolor{enumerate item}{bg=white,fg=blue}
+\setbeamercolor{enumerate subitem}{bg=white,fg=red}
+\setbeamercolor{enumerate subsubitem}{bg=white,fg=teal}
+
+% make text area larger
+\setbeamersize{text margin left=1cm}
+\setbeamersize{text margin right=1cm}
+
+% add TOC before each section
+\AtBeginSection[]{ %
+  \begin{frame}<beamer>
+  \frametitle{Outline}
+  \tableofcontents[currentsection]
+  \end{frame}
+}
