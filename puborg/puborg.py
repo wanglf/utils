@@ -1,4 +1,4 @@
-#!/usr/local/bin/python2.7
+#!/bin/python
 # -*- coding:utf-8 -*-
 
 import os
