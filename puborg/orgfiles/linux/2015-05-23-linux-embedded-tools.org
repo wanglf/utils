@@ -1,0 +1,77 @@
+#+TITLE: Linux嵌入式平台工具
+#+AUTHOR: Micky Ching
+#+OPTIONS: H:4 ^:nil
+#+LATEX_CLASS: latex-doc
+#+PAGE_TAGS: linux tftp serial
+
+* Linux嵌入式平台工具
+** TFTP工具
+#+HTML: <!--abstract-begin-->
+Linux下tftp工具用如下方式启动。
+#+BEGIN_SRC sh
+tftp [OPTONS] [IP [PORT]]
+#+END_SRC
+
+进入会话之后基本命令如下。
+- connect IP [PORT] :: 连接IP
+- binary :: 二进制模式传输
+- ascii :: 文件传输模式，默认采用文本模式
+- verbose :: 显示详细处理信息
+- status :: 显示当前状态信息
+- trace :: 显示调试信息
+- rexmt retransmission-timeout :: 设置重传输的超时时间
+- timeout total-transmission-timeout :: 设置包传输超时时间
+- get FNAME :: 获取文件
+- put FNAME :: 发送文件
+- help/? :: 帮助信息
+- quit/q :: 退出
+#+HTML: <!--abstract-end-->
+
+也可以在一行命令中设置要传递的参数。
+#+BEGIN_SRC sh
+tftp -v 192.168.1.20 69 -m binary -c put vmlinux.img
+#+END_SRC
+
+推荐的办法是将要执行的命令写成一个文件，通过批量执行来减少手动输入，
+如下所示。
+#+BEGIN_SRC sh
+tftp < batch-script.sh
+#+END_SRC
+
+** 串口工具
+#+HTML: <!--abstract-begin-->
+Linux下的串口工具有picocom、minicom和kermit等。
+Windows下有SecureCRT和putty等。
+#+HTML: <!--abstract-end-->
+
+*** picocom
+picocom是一个最小的哑终端仿真程序，Ubuntu下可以用如下命令安装并执行。
+#+BEGIN_SRC sh
+sudo apt-get install picocom
+sudo picocom -b 57600 -e o /dev/ttyUSB0
+#+END_SRC
+
+picocom命令的格式和选项如下所示。
+#+BEGIN_SRC sh
+picocom [OPTIONS] device
+#+END_SRC
+- -b NUM :: 指定波特率，可以为：
+     300, 600, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200
+- -s SEND-CMD :: 发送文件用的命令，默认为 =sz -vv=
+- -v RECV-CMD :: 接收文件用的命令，默认为 =rz -vv=
+
+进入到串口界面以后，可以执行picocom命令，
+picocomn命令格式为 =ESC cmd=，默认转义字符为 =C-a=，具体命令的含义如下所示。
+| ESC[C-a] | 将转义字符发送到串口   |
+| C-x      | 退出并复位             |
+| C-q      | 退出但不复位           |
+| C-p      | DTR脉冲，拉低1秒再拉高 |
+| C-t      | DTR反向                |
+| C-u      | 升高波特率             |
+| C-d      | 降低波特率             |
+| C-s      | 发送文件               |
+| C-r      | 接收文件               |
+
+* 参考资料
+- [[http://linux.die.net/man/1/tftp][tftp(1) - Linux man page]]
+- [[http://linux.die.net/man/8/picocom][picocom(8) - Linux man page]]

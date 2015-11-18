@@ -1,0 +1,316 @@
+#+TITLE: C语言单元测试
+#+AUTHOR: Micky Ching
+#+OPTIONS: H:4 ^:nil
+#+LATEX_CLASS: latex-doc
+#+PAGE_TAGS: clang unit-test
+
+* CUnit
+** 简介
+#+HTML: <!--abstract-begin-->
+
+CUnit是一个轻量级的系统，用于对C代码进行单元测试，
+CUnit以静态库的方式提供给用户使用。
+
+主要头文件如下。
+- CUnit/CUnit.h :: 主要包括用于测试的宏
+- CUnit/CUError.h :: 错误处理函数和数据类型
+- CUnit/TestDB.h :: 用于registry、suites和tests
+- CUnit/TestRun.h :: 运行测试和生成结果
+- CUnit/Automated.h :: 用于输出xml
+- CUnit/Basic.h :: 非交互式输出到stdout的接口
+- CUnit/Console.h :: 交互式console接口
+- CUnit/CUCurses.h :: 交互式console接口(*nix)
+- CUnit/Win.h :: Windows接口
+
+#+HTML: <!--abstract-end-->
+
+file:fig/cunit/cunit-frame.png
+
+*** 基本用法
+- 编写测试函数，suite的init/cleanup
+- 初始化registry，CU_initialize_registry()
+- 添加suite到registry，CU_add_suite()
+- 添加test到suite，CU_add_test()
+- 运行测试，CU_console_run_tests()
+- 清除registry，CU_cleanup_registry()
+
+** CUnit使用详解
+*** 测试宏
+测试函数的原型为 =void test_func(void)=，如下所示。
+#+BEGIN_SRC cpp
+int maxi(int i1, int i2)
+{
+    return (i1 > i2) ? i1 : i2;
+}
+
+void test_maxi(void)
+{
+    CU_ASSERT(maxi(0,2) == 2);
+    CU_ASSERT(maxi(0,-2) == 0);
+    CU_ASSERT(maxi(2,2) == 2);
+}
+#+END_SRC
+
+如果测试失败，将继续测试下去，如果调用FATAL版本，那么测试出错就会退出，
+使用FATAL版本需要慎重，因为测试函数可能没有机会执行清除动作。
+
+基本测试宏如下所示。
+#+BEGIN_SRC cpp
+CU_ASSERT(int expression)
+CU_ASSERT_FATAL(int expression)
+CU_TEST(int expression)
+CU_TEST_FATAL(int expression)
+
+CU_ASSERT_TRUE(value)
+CU_ASSERT_TRUE_FATAL(value)
+CU_ASSERT_FALSE(value)
+CU_ASSERT_FALSE_FATAL(value)
+CU_ASSERT_EQUAL(actual, expected)
+CU_ASSERT_EQUAL_FATAL(actual, expected)
+CU_ASSERT_NOT_EQUAL(actual, expected)
+CU_ASSERT_NOT_EQUAL_FATAL(actual, expected)
+
+CU_ASSERT_PTR_EQUAL(actual, expected)
+CU_ASSERT_PTR_EQUAL_FATAL(actual, expected)
+CU_ASSERT_PTR_NOT_EQUAL(actual, expected)
+CU_ASSERT_PTR_NOT_EQUAL_FATAL(actual, expected)
+CU_ASSERT_PTR_NULL(value)
+CU_ASSERT_PTR_NULL_FATAL(value)
+CU_ASSERT_PTR_NOT_NULL(value)
+CU_ASSERT_PTR_NOT_NULL_FATAL(value)
+
+CU_ASSERT_STRING_EQUAL(actual, expected)
+CU_ASSERT_STRING_EQUAL_FATAL(actual, expected)
+CU_ASSERT_STRING_NOT_EQUAL(actual, expected)
+CU_ASSERT_STRING_NOT_EQUAL_FATAL(actual, expected)
+
+CU_ASSERT_NSTRING_EQUAL(actual, expected, count)
+CU_ASSERT_NSTRING_EQUAL_FATAL(actual, expected, count)
+CU_ASSERT_NSTRING_NOT_EQUAL(actual, expected, count)
+CU_ASSERT_NSTRING_NOT_EQUAL_FATAL(actual, expected, count)
+
+CU_ASSERT_DOUBLE_EQUAL(actual, expected, granularity)
+CU_ASSERT_DOUBLE_EQUAL_FATAL(actual, expected, granularity)
+CU_ASSERT_DOUBLE_NOT_EQUAL(actual, expected, granularity)
+CU_ASSERT_DOUBLE_NOT_EQUAL_FATAL(actual, expected, granula
+
+CU_PASS(message)
+CU_FAIL(message)
+CU_FAIL_FATAL(message)
+#+END_SRC
+
+*** Test Registry
+#+BEGIN_SRC cpp
+typedef struct CU_TestRegistry
+{
+    unsigned int uiNumberOfSuites;
+    unsigned int uiNumberOfTests;
+    CU_pSuite    pSuite;
+} CU_TestRegistry;
+typedef CU_TestRegistry*  CU_pTestRegistry
+
+CU_ErrorCode     CU_initialize_registry(void);
+void             CU_cleanup_registry(void);
+CU_pTestRegistry CU_get_registry(void);
+CU_pTestRegistry CU_set_registry(CU_pTestRegistry pTestRegistry);
+CU_pTestRegistry CU_create_new_registry(void);
+void             CU_destroy_existing_registry(CU_pTestRegistry* ppRegistry);
+#+END_SRC
+- CU_cleanup_registry :: 只会影响到内部的CU_TestRegistry，
+     用户的数据需要用户自己去维护。
+- CU_get_registry :: 获取一个CU_TestRegistry，用户不要去直接访问结构的成员。
+- CU_set_registry :: 返回的是old registry，释放old registry是用户的责任。
+
+*** 管理Test和Suite
+#+BEGIN_SRC cpp
+typedef struct CU_Suite;
+typedef CU_Suite* CU_pSuite;
+
+typedef struct CU_Test;
+typedef CU_Test* CU_pTest;
+
+typedef void (*CU_TestFunc)(void);
+typedef int  (*CU_InitializeFunc)(void);
+typedef int  (*CU_CleanupFunc)(void);
+
+CU_pSuite CU_add_suite(const char* strName, CU_InitializeFunc pInit,
+                       CU_CleanupFunc pClean);
+CU_pTest  CU_add_test(CU_pSuite pSuite, const char* strName,
+                      CU_TestFunc pTestFunc);
+
+typedef struct CU_TestInfo;
+typedef struct CU_SuiteInfo;
+
+CU_ErrorCode CU_register_suites(CU_SuiteInfo suite_info[]);
+CU_ErrorCode CU_register_nsuites(int suite_count, ...);
+#+END_SRC
+- CU_add_suite :: 将suite加入到registry，因此必须要先初始化registry。
+     如果添加成功就会返回suite的指针，否则返回NULL并设置error-code，
+     含义如下表所示。
+
+| CUE_SUCCESS      | suite creation was successful.         |
+| CUE_NOREGISTRY   | the registry has not been initialized. |
+| CUE_NO_SUITENAME | strName was NULL.                      |
+| CUE_DUP_SUITE    | the suite's name was not unique.       |
+| CUE_NOMEMORY     | memory allocation failed.              |
+
+- CU_add_test :: 成功返回test指针，失败返回NULL并设置error-code，
+     含义如下表所示。
+
+| CUE_SUCCESS     | suite creation was successful.           |
+| CUE_NOSUITE     | the specified suite was NULL or invalid. |
+| CUE_NO_TESTNAME | strName was NULL.                        |
+| CUE_NO_TEST     | pTestFunc was NULL or invalid.           |
+| CUE_DUP_TEST    | the test's name was not unique.          |
+| CUE_NOMEMORY    | memory allocation failed.                |
+
+除此之外还定义了一组宏来简化添加操作，如下所示。
+#+BEGIN_SRC cpp
+#define CU_ADD_TEST(suite, test) \
+    (CU_add_test(suite, #test, (CU_TestFunc)test))
+CU_ErrorCode CU_register_suites(CU_SuiteInfo suite_info[]);
+CU_ErrorCode CU_register_nsuites(int suite_count, ...);
+#+END_SRC
+- CU_ADD_TEST :: 用于简化添加测试
+- CU_register_suites :: 用数组定义多个测试集，一次将数组内的测试集都添加进来。
+- CU_register_nsuites :: 这个函数更夸张，将多个测试集数组一次性添加进来。
+
+我个人比较喜欢数组写法，举例如下。
+#+BEGIN_SRC cpp
+CU_TestInfo test_array1[] = {
+    { "testname1", test_func1 },
+    { "testname2", test_func2 },
+    { "testname3", test_func3 },
+    CU_TEST_INFO_NULL,
+};
+
+CU_SuiteInfo suites1[] = {
+    { "suitename1", suite1_init-func, suite1_cleanup_func, test_array1 },
+    { "suitename2", suite2_init-func, suite2_cleanup_func, test_array2 },
+    CU_SUITE_INFO_NULL,
+};
+
+CU_ErrorCode error = CU_register_suites(suites1);
+CU_ErrorCode error = CU_register_nsuites(2, suites1, suites2);
+#+END_SRC
+
+*** 运行测试
+**** Automated mode
+#+BEGIN_SRC cpp
+void         CU_automated_run_tests(void);
+CU_ErrorCode CU_list_tests_to_file(void);
+void         CU_set_output_filename(const char* szFilenameRoot);
+#+END_SRC
+- CU_automated_run_tests :: 测试输出结果为ROOT-Results.xml，
+     ROOT可以用CU_set_output_filename()设定，
+     默认名字为CUnitAutomated-Results.xml。
+- CU_list_tests_to_file :: 将注册的测试集和关联测试输出到文件，
+     文件名为ROOT-Listing.xml。
+- CU_set_output_filename :: 指定文件名，默认使用CUnitAutomated。
+
+**** Basic mode
+#+BEGIN_SRC cpp
+typedef enum    CU_BasicRunMode;
+CU_ErrorCode    CU_basic_run_tests(void);
+CU_ErrorCode    CU_basic_run_suite(CU_pSuite pSuite);
+CU_ErrorCode    CU_basic_run_test(CU_pSuite pSuite, CU_pTest pTest);
+void            CU_basic_set_mode(CU_BasicRunMode mode);
+CU_BasicRunMode CU_basic_get_mode(void);
+void            CU_basic_show_failures(CU_pFailureRecord pFailure);
+#+END_SRC
+- CU_basic_run_tests :: Runs all tests in all registered suites
+- CU_basic_run_suite :: Runs all tests in single specified suite
+- CU_basic_run_test :: Runs a single test in a specified suite
+- CU_basic_set_mode :: 设置运行模式
+  - CU_BRM_NORMAL :: 输出错误信息和概要
+  - CU_BRM_SILENT :: 仅输出错误信息
+  - CU_BRM_VERBOSE :: 详细输出所有信息
+- CU_basic_get_mode :: Retrieves the current basic run mode code
+- CU_basic_show_failures :: Prints a summary of all failures to stdout.
+     Does not depend on the run mode.
+
+**** Interactive Console Mode
+#+BEGIN_SRC cpp
+void CU_console_run_tests(void);
+#+END_SRC
+**** Interactive Curses Mode
+#+BEGIN_SRC cpp
+void CU_curses_run_tests(void);
+#+END_SRC
+**** Getting Test Results
+#+BEGIN_SRC cpp
+unsigned int CU_get_number_of_suites_run(void);
+unsigned int CU_get_number_of_suites_failed(void);
+unsigned int CU_get_number_of_tests_run(void);
+unsigned int CU_get_number_of_tests_failed(void);
+unsigned int CU_get_number_of_asserts(void);
+unsigned int CU_get_number_of_successes(void);
+unsigned int CU_get_number_of_failures(void);
+
+typedef struct CU_RunSummary
+{
+    unsigned int nSuitesRun;
+    unsigned int nSuitesFailed;
+    unsigned int nTestsRun;
+    unsigned int nTestsFailed;
+    unsigned int nAsserts;
+    unsigned int nAssertsFailed;
+    unsigned int nFailureRecords;
+} CU_RunSummary;
+typedef CU_Runsummary* CU_pRunSummary;
+const CU_pRunSummary CU_get_run_summary(void);
+
+typedef struct CU_FailureRecord
+{
+    unsigned int  uiLineNumber;
+    char*         strFileName;
+    char*         strCondition;
+    CU_pTest      pTest;
+    CU_pSuite     pSuite;
+
+    struct CU_FailureRecord* pNext;
+    struct CU_FailureRecord* pPrev;
+} CU_FailureRecord;
+typedef CU_FailureRecord*  CU_pFailureRecord;
+const CU_pFailureRecord CU_get_failure_list(void);
+unsigned int CU_get_number_of_failure_records(void);
+#+END_SRC
+
+*** 错误处理
+#+BEGIN_SRC cpp
+typedef enum CU_ErrorCode;
+CU_ErrorCode   CU_get_error(void);
+const char*    CU_get_error_msg(void);
+
+typedef enum CU_ErrorAction;
+void           CU_set_error_action(CU_ErrorAction action);
+CU_ErrorAction CU_get_error_action(void);
+#+END_SRC
+错误码定义如下表所示。
+| CUE_SUCCESS           | No error condition.                                            |
+| CUE_NOMEMORY          | Memory allocation failed.                                      |
+| CUE_NOREGISTRY        | Test registry not initialized.                                 |
+| CUE_REGISTRY_EXISTS   | Attempt to CU_set_registry() without CU_cleanup_registry().    |
+| CUE_NOSUITE           | A required CU_pSuite pointer was NULL.                         |
+| CUE_NO_SUITENAME      | Required CU_Suite name not provided.                           |
+| CUE_SINIT_FAILED      | Suite initialization failed.                                   |
+| CUE_SCLEAN_FAILED     | Suite cleanup failed.                                          |
+| CUE_DUP_SUITE         | Duplicate suite name not allowed.                              |
+| CUE_NOTEST            | A required CU_pTest pointer was NULL.                          |
+| CUE_NO_TESTNAME       | Required CU_Test name not provided.                            |
+| CUE_DUP_TEST          | Duplicate test case name not allowed.                          |
+| CUE_TEST_NOT_IN_SUITE | Test is not registered in the specified suite.                 |
+| CUE_FOPEN_FAILED      | An error occurred opening a file.                              |
+| CUE_FCLOSE_FAILED     | An error occurred closing a file.                              |
+| CUE_BAD_FILENAME      | A bad filename was requested (NULL, empty, nonexistent, etc.). |
+| CUE_WRITE_ERROR       | An error occurred during a write to a file.                    |
+
+出错时的行为定义如下表所示。
+| CUEA_IGNORE | Runs should be continued when an error condition occurs (default) |
+| CUEA_FAIL   | Runs should be stopped when an error condition occurs             |
+| CUEA_ABORT  | The application should exit() when an error conditions occurs     |
+
+* 参考资料
+- [[http://cunit.sourceforge.net/][A Unit Testing Framework for C]]
+  - [[http://cunit.sourceforge.net/doc/index.html][CUnit Users Guide]]
+  - [[http://cunit.sourceforge.net/doxdocs/index.html][CUnit Documentation]]

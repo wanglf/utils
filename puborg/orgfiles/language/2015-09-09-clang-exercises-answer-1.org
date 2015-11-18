@@ -1,0 +1,201 @@
+#+TITLE: C/C++习题解答1
+#+AUTHOR: Micky Ching
+#+OPTIONS: H:4 ^:nil
+#+LATEX_CLASS: latex-doc
+#+PAGE_TAGS: clang C++
+
+* C语言习题
+** 关键字解释
+1. 最常用的表示类型的关键字，如下表：
+   | char | short  | int      | long | float | double |
+   | void | signed | unsigned | enum | union | struct |
+
+   在类型基础上还有修饰类型的关键字：
+   | auto | register | static | extern | const | volatile |
+   - auto :: 默认自动变量，常省略
+   - register :: 用于告诉编译器这是常用变量，请放到寄存器中。
+        现在一般并不希望由用户来指定，而是有编译器自动分析。
+        并且因为不在内存，所以不能取地址！
+   - static :: 用于限制作用域或存储位置
+   - extern :: 用于声明外部变量
+   - const :: 用于定义常量
+   - volatile :: 用于定义无缓存变量
+
+   流程控制关键字：
+   | if     | else | do      | while | for      |
+   | switch | case | default | break | continue |
+   | return | goto |         |       |          |
+
+   操作关键字：
+   | typedef | sizeof |
+
+2. 在C原文件中经常有这样的代码：
+   #+BEGIN_SRC cpp
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+...
+
+#ifdef __cplusplus
+}
+#endif
+   #+END_SRC
+   宏__cplusplus是C++编译器内置的宏，如果是C编译器就未定义，
+   如果是为了给C代码使用，就需要加上extern C以按照C语言规范编译，
+   这样就不会自动给函数重命名以支持函数重载。
+   否则按照C++规范编译会重命名函数，导致符号找不到。
+   这里要注意的是即便是C原文件也需要写这样的定义，
+   因为可以对C文件调用C++编译器。
+3. ifdef是最基本的探测宏是否定义的指令：
+   #+BEGIN_SRC cpp
+#ifndef PI
+#define ENV_THIS NO_MATH
+#endif
+
+#ifdef PI
+#define ENV_THAT HAVE_MATH
+#else
+#define ENV_THAT NO_MATH
+#endif
+   #+END_SRC
+
+   if defined也是用来监测宏定义，不过可以更复杂一点：
+   #+BEGIN_SRC cpp
+#if defined(PI) || defined(ABS)
+#define ENV_THIS NO_MATH
+#else
+#define ENV_THIS HAVE_MATH
+#endif
+   #+END_SRC
+   其实if defined只不过是if指令的子集，更灵活的其实是if指令：
+   #+BEGIN_SRC cpp
+#if (PERM == 0) || (PERM == 1)
+#define YOUR_PERM LOW_PERM
+#elif defined(YOUT_PERM_HI)
+#define YOUR_PERM HI_PERM
+#elif (PERM > 10)
+#define YOUR_PERM HI_PERM
+#endif
+   #+END_SRC
+
+4. 首先看sizeof对空类计算的结果：
+   #+BEGIN_SRC cpp
+class empty {};
+class empty_arrary { int data[0]; };
+   #+END_SRC
+   如果用g++编译，对empty算出来是1，对empty_array算出来是0，
+   但这不是说答案应该是这样的，为此需要看一下标准C的说法，
+   标准C不允许0大小的对象，即0长数组、空结构、空共同体都是不允许的。
+   所以这种写法没有可移植性。
+
+   而C++标准则允许空类，empty应当是1，这是为了保证每个对象都有一个独立的地址。
+
+   如果是对含有多种类型的类进行计算，那么要考虑内存对齐，
+   这里假定b表示一个bool，s表示一个short，i表示一个int：
+   对于class b，长度为b1，class bs，长度为4，布局为b2s2，
+   class bsb，长度为6，布局为b2s2b2，class bib，长度为12，布局为b4i4b4，
+   class bsi，长度为8，布局为b2s2i4。
+   如果添加packed属性，即如下所示：
+   #+BEGIN_SRC cpp
+struct pbsi {bool b; short s; int i;} __attribute__((__packed__));
+   #+END_SRC
+   那么长度为7。此外可以使用冒号语法来限定每个段的长度，如下：
+   #+BEGIN_SRC cpp
+struct bss2 {bool b:6; short s:1; short s1:1;}
+   #+END_SRC
+   长度为2，不过实际值可能和预期是不一样的，如：
+   #+BEGIN_SRC cpp
+struct bsi4 {bool b:6; short s:1; int i:9;};
+   #+END_SRC
+   长度为4，这里如果简单相加得到的结果是2个字节，显然和实际编译结果不一样。
+   但是加上 =__attribute__((packed))= 就能得到2个字节。
+   所以在使用上，如果确实需要压缩，那么就有必要添加packed属性。
+* C++习题
+** 类的基本概念
+*** 成员函数
+1. 构造函数是用来初始化对象的，不能有返回值。
+   构造函数相比于其它函数有其特别之处，可以使用初始化列表，
+   初始化列表先于函数体执行。
+   要注意的是如果要使用默认参数，需要在声明处指定，而不是定义的时候才指定。
+
+   析够函数是用来释放对象的，不能有参数，因此不能重载。
+
+   多个文件的全局变量构造函数调用顺序不确定，
+   静态对象在函数首次调用时创建，程序退出时释放。
+
+2. 同一个类中不允许对函数重定义，但是在继承层次中却允许不同层次去定义相同的函数，
+   以实现在不同层次完成不同的功能。
+   这又有两种方式，一种是静态绑定，即以什么样的形式传入，就调用什么形式的函数，
+   一种是动态绑定，不论以什么形式传入，都调用其本身的函数。
+   动态绑定其实就是借助基类的指针或引用来调用本质定义，而不是形式定义。
+   两种绑定方式又可以描述为早期绑定和晚绑定，即前者在编译期确定，
+   后者在编译时不会直接插入函数地址，而是一段汇编代码。
+
+   此外面临的一个问题是对于一个函数在哪个层次开始动态绑定，这个也很容易理解，
+   从上往下，哪个层次最先出现 =virtual=，哪个层次就最先实现动态绑定，
+   向下自动继承 =virtual= 特性。
+
+   虚函数不能使用默认参数，因为默认参数是静态绑定，如果子类改写默认参数，
+   会出现调用子类虚函数，仍然使用父类虚函数中的默认参数！
+
+   下面的概念比较绕：
+   子类未改写普通函数调用已改写的虚函数时，则调用的是已改写过的虚函数。
+   子类未改写普通函数调用已改写普通函数时，则调用的是父类的普通函数。
+
+   为了能够正确释放子类，析够函数必须指定为虚函数。
+
+   纯虚函数用于定义抽象基类/虚基类，阻止实例化。
+   为了能够实例化，子类必须定义所有抽象接口。
+
+   *重载* 同名不同形，即参数不同
+
+   *重定义* 子类定义和父类相同函数，也叫隐藏
+
+   *重写* 子类定义和父类相同虚函数
+
+   虚继承用于解决多重继承模糊问题，如A中定义了 =print=，
+   B、C继承于A，而D继承于B、C，当D调用 =print= 时，
+   无法知道该用B还是C的，用虚继承则可以让其只有一个拷贝，
+   都指向同一 =print= 函数。
+   #+BEGIN_SRC cpp
+class A;                                // 1B
+class B: public vitual A;               // 4B
+class C: public vitual A;               // 4B
+class D: public B, public C;            // 8B
+   #+END_SRC
+
+   构造函数不能是虚函数，因为调用虚函数需要借助虚函数表，
+   但此时还没有构造，故无虚函数表可用。
+   比较有趣的inline virtual，编译器可以跳过虚表直接调用，
+   甚至可以内联展开，当然前提是编译器知道具体类型，
+   否则inline自动失效，具体点就是如果是通过对象调用就是inline，
+   如果通过指针或引用调用则inline失效。
+   此外成员模板函数也不能是虚函数，主要是实现难度太大，
+   比方说每增加一种实例就需要增加一个定义，虚函数表也就需要被动扩大，
+   这就导致你不能事先确定虚函数表的大小。
+   还有诸如如何去区分重写、重定义、重载等问题。
+
+** 内存管理
+1. 智能指针关键是重载 =->= 操作符，为了判定指向是否为空，
+   需要用 =ptr.get()= 获取裸指针和NULL比较。
+
+   std::auto_ptr实际只能管理单个堆对象，因为执行赋值操作时，
+   原来的指针被reset。这个行为如此奇怪，所以最终也被新的标准抛弃。
+   也正是这个糟糕的设计使得使用起来非常困难，不能作为参数进行值传递，
+   不能放入vector等等。
+
+   boost::scoped_ptr和auto_ptr设计思路是一致的，都是管理单个堆对象，
+   但是没有提供赋值操作符，所以被强制限定了，这至少能防止误用。
+
+   boost::shared_ptr利用引用计数来确定何时释放，也是用于管理单个堆对象。
+
+   boost:scoped_array用于管理动态数组，同样不允许赋值。
+
+   boost:shared_array也是利用引用计数，管理动态数组。
+
+   boost::weak_ptr的存在是为了解决每次使用shared_ptr都会增加引用计数。
+   weak_ptr是一个观察者，它本身不会增加引用计数。
+
+   boost:instrusive_ptr机理和shared_ptr一样，
+   只不过把引用计数的任务推给对象本身而已。

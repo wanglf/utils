@@ -1,0 +1,288 @@
+#+TITLE: Emacs Orgmode
+#+AUTHOR: Micky Ching
+#+OPTIONS: H:4 ^:nil
+#+LATEX_CLASS: latex-doc
+#+PAGE_TAGS: emacs
+
+* 简介
+#+HTML: <!--abstract-begin-->
+
+Org mode是Emacs下写文档的一个主模式，非常适用于记笔记、写TODO、制定项目计划、写文档等。
+
+以星号开头加空格作为章节标识符，星号的个数越多，那么章节的深度就越大。
+TAB键用来展开/折叠当前子树，S-TAB用来展开/折叠所有章节。
+初始打开的状态可以通过在文档开头添加如下文字指定。
+#+BEGIN_SRC org
+,#+STARTUP: content
+#+END_SRC
+可选参数包括：overview、content、showall。
+
+#+HTML: <!--abstract-end-->
+
+* 基本操作
+** 章节操作
+| C-c C-[np]         | next/previous heading            |
+| C-c C-[fb]         | next/previous same level         |
+| C-c C-u            | upper level heading              |
+| M-RET              | insert new same level heading    |
+| M-S-RET            | insert new same level TODO       |
+| M-LEFT/M-RIGHT     | promote/demote heading one level |
+| M-S-LEFT/M-S-RIGHT | promote/demote subtree one level |
+| M-S-UP/M-S-DOWN    | move subtree up/down             |
+| C-c *              | 将本行设置为标题/正文            |
+| C-c C-j            | 切换到大纲浏览状态               |
+
+** 列表操作
+无序的列表用-或+开头，有序的列表以1.或1)开头，
+描述列表用::分割项目和描述。
+
+| TAB                | 折叠列表                     |
+| M-RET              | 插入一个item                 |
+| M-S-RET            | insert a item with checkbox  |
+| M-S-UP/M-S-DOWN    | move item up/down            |
+| M-LEFT/M-RIGHT     | de/increase item indent      |
+| M-S-LEFT/M-S-RIGHT | de/increase [sub]item indent |
+| C-c C-c            | toggle state of checkbox     |
+| C-c -              | cycle list level             |
+
+** 表格插图
+插图和表格可以设置名字，格式如下所示。
+#+BEGIN_SRC org
+,#+CAPTION: table or figure caption
+,#+NAME: tbl:basic-data
+#+END_SRC
+
+常用表格操作如下所示。
+| C-c \vert   | 创建/转换表格                  |
+| C-c C-c     | 整理表格                       |
+| TAB/S-TAB   | 移动到下一格/上一格            |
+| M-S-LEFT    | 删除当前列                     |
+| M-S-RIGHT   | 在左侧插入一列                 |
+| M-UP/M-DOWN | 当前行上/下移                  |
+| M-S-UP      | 删除当前行                     |
+| M-S-DOWN    | 在当前行上方插入一行           |
+| C-c -       | 在下方插入一行                 |
+| C-c RET     | 在下方插入分割线，并跳到下一行 |
+| C-c ^       | 排序                           |
+
+插图方法很简单，直接写入图片地址即可，如：
+#+BEGIN_SRC text
+file:fig/logo.png
+#+END_SRC
+
+*** LaTeX属性
+表格插图的LaTeX属性设置方法大体相同，详细说明可以参考 [[http://orgmode.org/manual/LaTeX-specific-attributes.html][LaTeX specific attributes]]。
+
+- placement :: 设置浮动环境。
+- width :: 指定宽度。
+
+#+BEGIN_SRC org
+,#+ATTR_LATEX: :width 0.8\textwidth :placement [htb!]
+#+END_SRC
+
+- align :: 用于设定对齐样式，
+- options :: 指定选项。
+
+#+BEGIN_SRC org
+,#+ATTR_LATEX: :environment longtable :align l|lp{3cm}r|l
+,#+ATTR_LATEX: :width 5cm :options angle=90
+#+END_SRC
+
+** 链接操作
+| C-c C-l | 编辑链接  |
+| C-c C-o | open link |
+
+链接的格式如下所示。
+#+BEGIN_SRC text
+[[link][description]] 或者 [[link]]
+#+END_SRC
+
+支持的链接形式如下所示。
+#+BEGIN_SRC text
+http://www.astro.uva.nl/~dominik        on the web
+file:/home/dominik/images/jupiter.jpg   file, absolute path
+/home/dominik/images/jupiter.jpg        same as above
+file:papers/last.pdf                    file, relative path
+file:~/code/main.c::255                 Find line 255
+file:~/xx.org::My Target                Find <<My Target>>
+file:~/xx.org::#my-custom-id            Find entry with custom id
+docview:papers/last.pdf::NNN            open file at page NNN
+id:B7423F4D-2E8A-471B-8810-C40F074      Link to heading by ID
+news:comp.emacs                         Usenet link
+mailto:adent@galaxy.net                 Mail link
+vm:folder                               VM folder link
+vm:folder#id                            VM message link
+wl:folder#id                            WANDERLUST message link
+mhe:folder#id                           MH-E message link
+rmail:folder#id                         RMAIL message link
+gnus:group#id                           Gnus article link
+bbdb:R.*Stallman                        BBDB link (with regexp)
+irc:/irc.com/#emacs/bob                 IRC link
+info:org:External%20links               Info node link
+#+END_SRC
+
+** 源代码
+在org-mode下输入 =<?TAB= 就能开启一个引用区，问号用具体的环境标识符替代。
+其中可以开启的环境类型如下表所示。
+| s    | BEGIN_SRC ... END_SRC         |
+| e    | BEGIN_EXAMPLE ... END_EXAMPLE |
+| q    | BEGIN_QUOTE ... END_QUOTE     |
+| v    | BEGIN_VERSE ... END_VERSE     |
+| c    | BEGIN_CENTER ... END_CENTER   |
+| l    | BEGIN_LaTeX ... END_LaTeX     |
+| h    | BEGIN_HTML ... END_HTML       |
+| a    | BEGIN_ASCII ... END_ASCII     |
+| H    | HTML                          |
+| L    | LaTeX                         |
+| A    | ASCII                         |
+| i    | INDEX                         |
+| I    | INCLUDE                       |
+
+源代码环境的格式如下所示，更详细的源代码环境文档请参考[[http://orgmode.org/manual/Working-With-Source-Code.html][Working with source code]]。
+#+BEGIN_SRC org
+,#+NAME: <name>
+,#+BEGIN_SRC <language> <switches> <header arguments>
+  <body>
+,#+END_SRC
+
+,#+INCLUDE: <file> src <language>
+
+src_<language>{<body>}
+src_<language>[<header arguments>]{<body>}
+#+END_SRC
+第1种书写方法是比较常见的代码片段引用，第2种可以将一个源文件引用过来，
+最后是以inline方式插入源代码。
+
+名字是可选的，一般不用指定名字。
+
+开关主要可以打开行号显示，默认是不显示行号的，
+=-n= 显示行号，而 =+n= 显示的行号数字会接着上一个代码区显示。
+
+参数比较多，一般常用的就是指定变量，输出路径等，
+请参考 [[http://orgmode.org/manual/Specific-header-arguments.html][Specific header arguments]] ，常用的header参数如下所示。
+- exports ::
+  用于选择将哪些块导入到文档中。
+  - code： 仅导出代码
+  - results: 仅导出结果
+  - both：都导出。
+  - none：都不导出
+- results ::
+  选择将哪些内容输出到结果。
+  - value：仅对最后一行语句求值。
+  - output：STDOUT的输出。
+- session ::
+  用于交互会话模式输出。
+
+对源代码环境的常用操作如下表所示。
+| C-c '   | 进入/退出源代码环境编辑 |
+| C-c C-c | 源代码求值              |
+
+*** 语法高亮
+
+导出pdf文档一般是用minted环境，而导出html则用的是相对本地化的环境。
+minted环境使用的其实是python的pygmentize语法高亮，
+可以用如下命令查看。
+#+BEGIN_SRC sh
+pygmentize -L styles            # 支持的高亮风格
+pygmentize -L lexers            # 支持的语言
+#+END_SRC
+
+执行输出pdf命令的时候需要加选项-shell-escape。
+本地化支持的语言还是比较丰富，详见 [[http://orgmode.org/manual/Languages.html][Languages]] ，
+建议按照 [[http://orgmode.org/worg/org-contrib/babel/languages.html][Babel: Languages]] 列举的标识符使用。
+
+*** 求值
+源代码环境下可以对源代码求值，在源代码区按 =C-c C-c= 就会执行求值运算。
+甚至可以在文档其他地方以不同的参数调用命名源码区进行求值。
+
+如下所示，在python代码区输入求值指令，就会输出默认参数下的运行结果，
+而在调用处输入求值指令就能输出在指定参数下的值。
+#+BEGIN_SRC org
+,#+NAME: print_sum
+,#+BEGIN_SRC python :var n=100
+  return n * (n + 1) / 2
+,#+END_SRC
+
+,#+RESULTS: print_sum
+: 5050
+
+,#+CALL: print_sum(n=5)
+
+,#+RESULTS:
+: 15
+#+END_SRC
+
+*** 其它环境
+EXAMPLE排版风格类似SRC，但是因为没有使用minted，所以没有额外修饰。
+QUOTE会自动断行，不会在每一行按照原样换行。
+VERSE会按照原样换行，行首的空白视为缩进， 行中的多个空白会被合并，长行会自动换行。
+CENTER类似QUOTE。
+
+** 事务管理
+*** 时间操作
+| C-c .   | 插入时间戳             |
+| C-c !   | 插入inactive timestamp |
+| S-lrud  | 在日历表移动           |
+| C-c C-d | add deadline           |
+| C-c C-s | add scheduled          |
+
+*** TODO操作
+- C-c C-t :: 插入TODO状态
+- S-LEFT/S-RIGHT :: 旋转TODO状态
+- C-c / t :: 查看TODO稀疏树
+- M-S-RET :: 插入一个TODO项
+- C-c , :: 设置优先级，优先级从A到C
+- S-UP/S-DOWN :: 旋转优先级
+- C-c C-c :: 插入一个标签
+
+*** TAG操作
+如果只想对当前文档添加标签，可以用如下方式在文章的开头定义一组标签。
+下例中@read为一个标签组，包括@read_book和@read_ebook两个标签。
+#+BEGIN_SRC org
+,#+TAGS: @work(w) @home(h) @tennisclub(t)
+,#+TAGS: laptop(l) pc(p)
+,#+TAGS: { @read : @read_book @read_ebook }
+#+END_SRC
+
+- C-c C-q :: 插入新的标签
+- C-c C-c :: 插入新的标签
+- C-c \ m :: 创建一个稀疏树以匹配搜索标签/属性/TODO
+
+插入标签会打开一个会话，在会话中如下按键有特定用法。
+- a-z :: 标签的简写，直接输入一个字符即可插入对应的标签
+- TAB :: 开启一个缓冲区插入标签，可以插入多个，用逗号分割
+- SPC :: 清除当前行所有标签
+- RET :: 完成插入
+- C-g :: 取消
+
+*** 属性操作
+| C-c C-x p | 设置属性 |
+| C-c C-c d | 删除属性 |
+
+*** 脚注操作
+| C-c C-x f | 跳转到定义或首次引用位置 |
+| C-c C-c   | 在定义和引用间跳转       |
+
+** 字符
+*** 字符字号
+LaTeX特殊字符包括 :: \vert \star _ \ $ # % & \ {} ~ 等，
+在org-mode下各符号的写法请参考[[http://orgmode.org/worg/org-symbols.html][Symbols in Org-mode]]。
+
+#+CAPTION: Latex字号表
+| 字号名字     |  10pt |  11pt |  12pt |
+|--------------+-------+-------+-------|
+| tiny         |     5 |     6 |     6 |
+| scriptsize   |     7 |     8 |     8 |
+| footnotesize |     8 |     9 |    10 |
+| small        |     9 |    10 | 10.95 |
+| normalsize   |    10 | 10.95 |    12 |
+| large        |    12 |    12 |  14.4 |
+| Large        |  14.4 |  14.4 | 17.28 |
+| LARGE        | 17.28 | 17.28 | 20.74 |
+| huge         | 20.74 | 20.74 | 24.88 |
+| Huge         | 24.88 | 24.88 | 24.88 |
+
+* 参考资料
+- [[http://home.fnal.gov/~neilsen/notebook/orgExamples/org-examples.html][Emacs org-mode examples and cookbook]]
+- [[http://orgmode.org/worg/org-tutorials/orgtutorial_dto.html][David O'Toole Org tutorial]]
+- [[http://orgmode.org/worg/org-tutorials/][Org tutorials]]

@@ -1,0 +1,149 @@
+#+TITLE: Linux多线程
+#+AUTHOR: Micky Ching
+#+OPTIONS: H:4 ^:nil
+#+LATEX_CLASS: latex-doc
+#+PAGE_TAGS: linux process thread
+
+* Linux POSIX线程
+#+HTML: <!--abstract-begin-->
+进程可以看作单个线程，多线程就是在一个进程中开启多个运行线程，
+每个进程使用各自的内存地址空间和文件描述符，但是线程不一样，
+同一进程下开启的线程自动继承相同的地址空间和文件描述符。
+
+Linux下有一个遵循POSIX.1-2001的线程接口，叫pthread。
+线程也有线程ID，叫TID。创建线程用如下函数。
+
+#+BEGIN_SRC cpp
+int pthread_create(pthread_t *restrict tidp,
+                   const pthread_attr_t *restrict attr,
+                   void *(*thread_func)(void *), void *restrict arg);
+#+END_SRC
+- tidp :: 用于保存创建线程的TID
+- attr :: 用于设置线程的属性，可以传递NULL
+- thread_func :: 即是当作线程执行的函数，线程继承地址空间和信号mask，
+     但是pending信号被清除
+- arg :: 即thread_func的参数
+#+HTML: <!--abstract-end-->
+
+如果一个进程中的任何一个线程调用exit()，将会导致整个进程退出，
+单个进程的退出可以通过如下三种方式：
+- 通过return语句返回
+- 被同进程下的其它线程取消
+- 通过pthread_exit()函数退出
+
+#+BEGIN_SRC cpp
+void pthread_exit(void *rval_ptr);
+int pthread_join(pthread_t thread, void **rval_ptr);
+int pthread_cancel(pthread_t tid);      // will not wait terminate
+#+END_SRC
+- pthread_join :: 该函数会阻塞，直到指定线程调用 =pthread_exit()=，
+     这里的rval_ptr是为了获取线程的返回值。
+
+** 线程同步
+*** 互斥锁
+为了保证线程之间对共享资源的正确访问，需要用到锁。
+mutex互斥机制是一个常用的锁。
+#+BEGIN_SRC cpp
+int pthread_mutex_init(pthread_mutex_t *restrict mutex,
+                       const pthread_mutexattr_t *restrict attr);
+int pthread_mutex_destroy(pthread_mutex_t *mutex);
+int pthread_mutex_lock(pthread_mutex_t *mutex);
+int pthread_mutex_trylock(pthread_mutex_t *mutex);
+int pthread_mutex_timedlock(pthread_mutex_t *restrict mutex,
+                            const struct timespec *restrict tsptr);
+int pthread_mutex_unlock(pthread_mutex_t *mutex);
+#+END_SRC
+
+使用互斥锁一个常见问题是出现死锁，避免死锁需遵循如下两个原则：
+- 禁止在同一个线程锁两次，或者锁了之后不释放
+- 如果要锁两个锁，所有代码应遵循相同的加锁顺序
+
+*** 读写锁
+读写锁能更细致处理读写工作，如果已经加上读锁，继续加读锁是允许的，
+但是如果要上写锁，就必须等待所有的读锁释放。
+这样做有一个潜在的问题，就是造成写入饥饿，为了解决这个问题，
+一般在实现上是这么考虑的，如果有人试图上写锁，那么新的读锁将被阻塞。
+#+BEGIN_SRC cpp
+int pthread_rwlock_init(pthread_rwlock_t *restrict rwlock,
+                        const pthread_rwlockattr_t *restrict attr);
+int pthread_rwlock_destroy(pthread_rwlock_t *rwlock);
+int pthread_rwlock_rdlock(pthread_rwlock_t *rwlock);
+int pthread_rwlock_wrlock(pthread_rwlock_t *rwlock);
+int pthread_rwlock_unlock(pthread_rwlock_t *rwlock);
+int pthread_rwlock_tryrdlock(pthread_rwlock_t *rwlock);
+int pthread_rwlock_trywrlock(pthread_rwlock_t *rwlock);
+int pthread_rwlock_timedrdlock(pthread_rwlock_t *restrict rwlock,
+                               const struct timespec *restrict tsptr);
+int pthread_rwlock_timedwrlock(pthread_rwlock_t *restrict rwlock,
+                               const struct timespec *restrict tsptr);
+#+END_SRC
+
+*** 条件值
+#+BEGIN_SRC cpp
+int pthread_cond_init(pthread_cond_t *restrict cond,
+                      const pthread_condattr_t *restrict attr);
+int pthread_cond_destroy(pthread_cond_t *cond);
+int pthread_cond_wait(pthread_cond_t *restrict cond,
+                      pthread_mutex_t *restrict mutex);
+int pthread_cond_timedwait(pthread_cond_t *restrict cond,
+                           pthread_mutex_t *restrict mutex,
+                           const struct timespec *restrict tsptr);
+int pthread_cond_signal(pthread_cond_t *cond);
+int pthread_cond_broadcast(pthread_cond_t *cond);
+#+END_SRC
+
+*** 自旋锁
+#+BEGIN_SRC cpp
+int pthread_spin_init(pthread_spinlock_t *lock, int pshared);
+int pthread_spin_destroy(pthread_spinlock_t *lock);
+int pthread_spin_lock(pthread_spinlock_t *lock);
+int pthread_spin_trylock(pthread_spinlock_t *lock);
+int pthread_spin_unlock(pthread_spinlock_t *lock);
+#+END_SRC
+- pshared :: 可以为：=PTHREAD_PROCESS_SHARED= 和 =PTHREAD_PROCESS_PRIVATE=，
+     共享状态下，其它进程的线程也可以使用。
+
+*** 屏障
+屏障用于等待其它线程到达某个点，如 =pthread_join= 就是一个屏障。
+#+BEGIN_SRC cpp
+int pthread_barrier_init(pthread_barrier_t *restrict barrier,
+const pthread_barrierattr_t *restrict attr,
+unsigned int count);
+int pthread_barrier_destroy(pthread_barrier_t *barrier);
+int pthread_barrier_wait(pthread_barrier_t *barrier);
+#+END_SRC
+- count :: 需要抵达屏障点的线程个数
+- attr :: 可以设置为NULL
+
+该屏障的用法比较简单，任何调用wait的线程都将在调用点停下来，
+直到调用次数达到count，然后所有的线程都被唤醒。
+
+
+** 线程控制
+*** 可重入
+当一个函数可以在多线程中同时调用，就认为是线程安全的。
+下表所列函数不是线程安全的。
+
+| basename      | getchar_unlocked | getservent  | putc_unlocked    |
+| catgets       | getdate          | getutxent   | putchar_unlocked |
+| crypt         | getenv           | getutxid    | putenv           |
+| dbm_clearerr  | getgrent         | getutxline  | pututxline       |
+| dbm_close     | getgrgid         | gmtime      | rand             |
+| dbm_delete    | getgrnam         | hcreate     | readdir          |
+| dbm_error     | gethostent       | hdestroy    | setenv           |
+| dbm_fetch     | getlogin         | hsearch     | setgrent         |
+| dbm_firstkey  | getnetbyaddr     | inet_ntoa   | setkey           |
+| dbm_nextkey   | getnetbyname     | l64a        | setpwent         |
+| dbm_open      | getnetent        | lgamma      | setutxent        |
+| dbm_store     | getopt           | lgammaf     | strerror         |
+| dirname       | getprotobyname   | lgammal     | strsignal        |
+| dlerror       | getprotobynumber | localeconv  | strtok           |
+| drand48       | getprotoent      | localtime   | system           |
+| encrypt       | getpwent         | lrand48     | ttyname          |
+| endgrent      | getpwnam         | mrand48     | unsetenv         |
+| endpwent      | getpwuid         | nftw        | wcstombs         |
+| endutxent     | getservbyname    | nl_langinfo | wctomb           |
+| getc_unlocked | getservbyport    | ptsname     |                  |
+
+* 参考资料
+- [[https://www.ibm.com/developerworks/cn/linux/kernel/l-thread/][Linux 线程实现机制分析]]

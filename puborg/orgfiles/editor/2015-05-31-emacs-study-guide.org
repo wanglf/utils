@@ -1,0 +1,74 @@
+#+TITLE: Emacs学习指南
+#+AUTHOR: Micky Ching
+#+OPTIONS: H:4 ^:nil
+#+LATEX_CLASS: latex-doc
+#+PAGE_TAGS: emacs
+
+* Emacs安装指南
+** 安装Emacs
+*** 在Windows上安装
+在Windows系统下载[[http://mirrors.ustc.edu.cn/gnu/emacs/windows/emacs-24.4-bin-i686-pc-mingw32.zip][emacs-24.4]] 解压运行runemacs.exe即可，
+下载并安装字体[[http://archive.ubuntu.com/ubuntu/pool/main/u/ubuntu-font-family-sources/ubuntu-font-family-sources_0.80.orig.tar.gz][ttf-ubuntu-font-family]] 和[[http://archive.ubuntu.com/ubuntu/pool/main/t/ttf-wqy-microhei/ttf-wqy-microhei_0.2.0-beta.orig.tar.gz][ttf-wqy-microhei]]。
+
+*** 在Linux上安装
+#+HTML: <!--abstract-begin-->
+
+#+BEGIN_SRC sh
+sudo apt-get build-dep emacs24
+sudo apt-get install ttf-ubuntu-font-family ttf-wqy-microhei
+wget http://mirrors.ustc.edu.cn/gnu/emacs/emacs-24.4.tar.gz
+tar -xzvf emacs-24.4.tar.gz
+cd emacs-24.4
+./autogen.sh; ./configure
+make; sudo make install
+#+END_SRC
+
+#+HTML: <!--abstract-end-->
+
+将如下代码写入 =~/.bashrc=，以便能支持中文输入：
+#+BEGIN_SRC sh
+alias emacs='LC_CTYPE=zh_CN.UTF-8 emacs &'
+#+END_SRC
+
+*** 在mac上安装
+#+BEGIN_SRC sh
+brew install emacs --with-cocoa
+#+END_SRC
+
+** 实用插件
+| 插件名        | 功能              |
+|---------------+-------------------|
+| orgmode       | [[http://orgmode.org/][Org mode]]          |
+| magit         | [[http://magit.vc/manual/magit/][Magit User Manual]] |
+| w3m           | [[http://w3m.sourceforge.net/MANUAL][w3m MANUAL]]        |
+| ibuffer       | 缓冲区管理        |
+| gtags         | 源代码跳转        |
+| snippet       | 输入模板          |
+| auto-complete | 自动补全          |
+| ecb           | 窗口管理/导航     |
+| xterm         | 使用终端          |
+| ido           | 命令补全          |
+* 实用技巧
+** 编辑技巧
+- describe-coding-system :: 查看当前编码状态
+- revert-buffer-with-coding-system :: 更换编码以解析文件
+- set-buffer-file-coding-system :: 设置编码，会修改文件
+- align-regexp :: 按照指定表达式对齐，用于代码排版
+- hexl-mode :: 用于查看二进制文件
+* 参考资料
+** 博客资源
+- [[http://blog.csdn.net/redguardtoo/article/details/7222501/][一年成为Emacs高手(像神一样使用编辑器)]]
+- [[http://tuhdo.github.io/index.html][Emacs Mini Manual]]
+- [[http://tuhdo.github.io/c-ide.html][C/C++ Development Environment for Emacs]]
+- [[http://pedrokroger.net/configuring-emacs-python-ide/][Configuring Emacs as a Python IDE]]
+- [[http://cs2.swfc.edu.cn/~wx672/lecture_notes/linux/latex/latex_tutorial.html][Emacs + LaTeX快速上手]]
+- [[http://alexott.net/en/writings/emacs-devenv/EmacsCedet.html][A Gentle introduction to CEDET]]
+- [[http://my.oschina.net/alphajay/blog/152599][使用emacs + cscope + ecb替代source insight]]
+- [[http://emacsthemes.caisah.info/][Emacs Themes]]
+- [[https://github.com/emacs-jp/replace-colorthemes/blob/master/screenshots.md][emacs-jp/replace-colorthemes]]
+
+** 论坛社区
+- [[http://www.masteringemacs.org/]]
+- [[http://emacsblog.org/][http://emacsblog.org]]
+
+

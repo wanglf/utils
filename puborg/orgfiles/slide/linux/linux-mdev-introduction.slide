@@ -1,0 +1,148 @@
+#+TITLE: Linux mdev introduction
+#+AUTHOR: Micky Ching
+#+EMAIL:
+#+OPTIONS: H:3 toc:2 ^:nil
+#+LATEX_CLASS: latex-slide
+#+LATEX_HEADER: \logo{\includegraphics[height=0.8cm]{fig/logo}\vspace{7.5cm}}
+
+* 简介
+** 简介
+*** MDEV = mini udev in busybox
+- =mdev -s= 用于扫描 =/sys/class= 和 =/sys/block=
+- 根据 =dev= 文件创建节点
+
+*** MDEV用途
+- 初始化扫描
+- 动态更新
+
+*** 启动配置
+#+BEGIN_SRC sh
+mount -t proc proc /proc                # 用于设定hotplug的文件系统
+mount -t sysfs sysfs /sys               # 用于mdev扫描的文件系统
+mount -t tmpfs -o size=64k,mode=0755 tmpfs /media # 用于挂载磁盘设备
+mount -t tmpfs -o size=64k,mode=0755 tmpfs /dev   # 用于创建设备节点
+echo /bin/mdev > /proc/sys/kernel/hotplug         # 设定hotplug程序
+mdev -s                                           # 启动扫描
+#+END_SRC
+
+* 配置文件
+** MDEV配置
+*** MDEV配置文件
+- /etc/mdev.conf :: 这个文件的位置固定不可修改
+- 默认情况会在 =/dev= 目录创建对应文件
+
+*** 配置语法
+#+BEGIN_SRC sh
+[-][envmatch]<device_regex>        <uid>:<gid> <perm> [cmd]
+[-][envmatch]@<maj[,min1[-min2]]>  <uid>:<gid> <perm> [cmd]
+[-][envmatch]$envvar=<regex>       <uid>:<gid> <perm> [cmd]
+[-][envmatch]subsystem/regex       <uid>:<gid> <perm> [cmd]
+#+END_SRC
+- - :: 在匹配成功时并不停止搜索
+- uid:gid perm :: 设备文件属性与权限
+
+*** 设备匹配表达式
+- hda :: 匹配hda
+- hd[a-z] :: 匹配hda、hdb、...、hdz
+- (tun|tap) :: 或表达式
+- .* :: 匹配任意字符串，包括空串
+- .+ :: 匹配非空任意字符串
+- hd[a-z][0-9] :: 匹配hda0 ... hdz9
+- usbdev[0-9].[0-9]* :: 可用 =usbdev.[0-9]+= 替代
+- ([hs]d[a-z])([0-9]+) :: 用括号分组，就可以用%1、%2对分组引用
+
+*** 其它匹配类型
+**** 设备号表达式
+**** 环境变量表达式
+#+BEGIN_SRC sh
+MODALIAS=.* 0:0 660 @modprobe "$MODALIAS"
+UBSYSTEM=usb;DEVTYPE=usb_device;.* root:root 660 */opt/mdev/helpers/proc-bus-usb
+#+END_SRC
+**** 子系统表达式
+
+*** 路径命令
+#+BEGIN_SRC sh
+[=>!]path
+#+END_SRC
+- = :: 移动路径
+- > :: 移动路径，并在 =/dev= 下创建符号链接
+- ! :: 禁止创建设备节点
+- %1..%9 :: 分组引用
+
+#+BEGIN_SRC sh
+mmcblk([0-9]+)p([0-9]+) root:disk       660 >disk/mmc/%1/%2
+#+END_SRC
+
+*** 外部命令
+#+BEGIN_SRC sh
+[@|$|*]<command>
+#+END_SRC
+- @ :: 在创建设备节点之后运行
+- $ :: 在移除设备节点之前运行
+- * :: 在创建设备节点之后，移除设备节点之前运行
+
+#+BEGIN_SRC sh
+  blk[0-9]p[0-9] 0:0     660 */lib/mdev/automounter.sh
+#+END_SRC
+
+*** 调试配置
+#+BEGIN_SRC sh
+-.* 0:0     666 *{ date; set; echo; } >>/var/log/mdev.log
+#+END_SRC
+
+** MDEV工作原理
+*** 注册磁盘
+[[file:fig/mdev/register-disk.png]]
+
+*** 创建netlink
+
+#+ATTR_LATEX: :height 7cm
+[[file:fig/mdev/netlink-create.png]]
+
+*** 监听netlink
+#+BEGIN_SRC cpp
+#include <stdio.h>
+#include <sys/socket.h>
+#include <linux/netlink.h>
+
+int uevent_listen(void)
+{
+    char buf[4096];
+    struct iovec iov = {
+        .iov_base = buf, .iov_len = sizeof(buf),
+    };
+    struct sockaddr_nl sa = {
+        .nl_family = AF_NETLINK,
+        .nl_groups = NETLINK_KOBJECT_UEVENT,
+    };
+    struct msghdr msg = {
+        .msg_name = &sa, .msg_namelen = sizeof(sa),
+        .msg_iov = &iov, .msg_iovlen = 1,
+    };
+    int sockfd, len, i;
+#+END_SRC
+
+*** 监听netlink
+#+BEGIN_SRC cpp
+    sockfd = socket(AF_NETLINK, SOCK_RAW, NETLINK_KOBJECT_UEVENT);
+    if (sockfd < 0)
+        return sockfd;
+    if (bind(sockfd, (struct sockaddr *)&sa, sizeof(sa)) < 0)
+        return -1;
+
+    len = recvmsg(sockfd, &msg, 0);
+    printf("received %d bytes\n", len);
+    if (len < 32 || len > sizeof(buf))
+        return -1;
+    for (i = 0; i < len; i++)
+        buf[i] = buf[i] ? buf[i] : '\n';
+    printf("%s\n", buf);
+    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    while (!uevent_listen());
+    return -1;
+}
+#+END_SRC

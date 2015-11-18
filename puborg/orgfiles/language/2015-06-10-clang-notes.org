@@ -1,0 +1,553 @@
+#+TITLE: C语言笔记
+#+AUTHOR: Micky Ching
+#+OPTIONS: H:4 ^:nil
+#+LATEX_CLASS: latex-doc
+#+PAGE_TAGS: clang
+
+* 语法要点
+** 基本元素
+*** 可执行程序
+#+BEGIN_CENTER
+#+ATTR_LATEX: :float t :placement [H] :width 6cm
+file:fig/clang/linux-mem-model.png
+#+END_CENTER
+
+位置无关代码的概念和动态库紧紧相连，静态库主要有两个问题，
+一是升级麻烦，二是常用函数大量复制让软件体积暴涨。
+但是静态库代码和数据在可执行文件有备份，所以符号地址固定，
+如果不将动态库编译成位置无关代码，那么就一定要加载到指定地址，
+运行时就不得不修改页面将其安排到固定位置，造成效率下降。
+*** 指针
+指针常量：指向固定
+#+BEGIN_SRC cpp
+int *const cp = &x;
+#+END_SRC
+
+常量指针：只读指针
+#+BEGIN_SRC cpp
+const int *pc = &x;
+int const *pc = &x;
+#+END_SRC
+
+双常量指针：指向固定的只读指针。
+#+BEGIN_SRC cpp
+const int *const cpc = &x;
+#+END_SRC
+
+理解 =const= 要记住它修饰的是其右边的东西，
+如右边是 =ptr=，那么就表示指向固定，
+如右边是 =*ptr=，那么就表示内容只读。
+
+更复杂的形式：
+#+BEGIN_SRC cpp
+const int **p;                          // A
+char *const *(*next)()                  // B
+#+END_SRC
+对于A，按照上面的口诀，右边是 =**p= 所以实际上是指内容只读。
+对于B，就是一个函数指针，返回一个二级指针，第一级为常量指针，
+第二级就是一个普通二级指针，即指向一个指针。
+
+*** 运算符优先级
+#+BEGIN_CENTER
+#+ATTR_LATEX: :float t :placement [H] :width 6cm
+file:fig/clang/op-priority.png
+#+END_CENTER
+*** 函数参数
+- 参数从右往左入栈
+
+可变参数用法：
+#+BEGIN_SRC cpp
+#include <stdarg.h>
+#include <stdio.h>
+
+void test1(int count, ...)              // number by count
+{
+    va_list args;
+    va_start(args, count);
+    for (int i = 0; i < count; i++) {
+        int value = va_arg(args, int);
+        printf("%d\n", value);
+    }
+    va_end(args);
+}
+
+void test2(const char* s, ...)          // end by NULL
+{
+    printf("%s\n", s);
+    va_list args;
+    va_start(args, s);
+    char* value;
+    do {
+        value = va_arg(args, char*);
+        if (value)
+            printf("%s\n", value);
+    } while (value != NULL);
+    va_end(args);
+}
+
+void test3(const char* format, ...)     // parse by format
+{
+    va_list args;
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
+}
+
+int main(int argc, char* argv[])
+{
+    test1(3, 11, 22, 33);
+    test2("hello", "world", NULL);
+    test3("number %d\n", 1234);
+    return 0;
+}
+#+END_SRC
+
+数组参数默认会退化为指针：
+#+BEGIN_SRC cpp
+// 等价写法：int arr[]
+void arr1_args(int *arr, int len);
+
+void arrp_args(int (*arrp)[len]);
+
+// 等价写法：int arr[][col]
+void arr2_args(int (*arr)[col], int row);
+#+END_SRC
+
+*** 结构体
+宏 =offsetof(class, member)= 可用于计算成员偏移量，
+但是这个宏其实是有很多限制的，比方不能对结构体中的压缩位字段计算。
+
+如果将尾部成员定义为0长数组的话，
+计算结构体大小时其对应成员长度按0计入。
+#+BEGIN_SRC cpp :exports both
+#include <stdio.h>
+struct zero_only {
+    char str[0];
+};
+struct zero_tail {
+    int count;
+    char str[0];
+};
+int main(int argc, char *argv[])
+{
+    printf("%d -> %d\n", sizeof(struct zero_only), sizeof(struct zero_tail));
+    return 0;
+}
+#+END_SRC
+
+#+RESULTS:
+: 0 -> 4
+
+* 陷阱与缺陷
+** 陷阱
+*** 访问越界
+#+HTML: <!--abstract-begin-->
+
+#+BEGIN_SRC cpp :includes <stdio.h>
+int a[10];
+int i;
+for (i = 0; i <= 10; i++) {
+    a[i] = 0;
+    printf("a[%d] = %d, ", i, a[i]);
+}
+#+END_SRC
+
+如果编译器按照内存地址递减的顺序给变量分配空间，那么a[10]对应的实际就是变量i，
+在循环到i=10的时候又将i复位为0，这就会引起一个有趣的现象，那就是循环变成一个死
+循环。
+#+HTML: <!--abstract-end-->
+
+*** 进制误用
+#+BEGIN_SRC cpp
+struct {
+    int part_number;
+    char *description;
+} part_table[] = {
+    027, "windows"
+    077, "linux"
+    123, "others"
+};
+#+END_SRC
+
+这里企图用0来对其，但是编译器会将027/077视为八进制数据，很可能这不是程序编写者的意图。
+
+*** 优先级误用
+#+BEGIN_SRC cpp
+if (flags & NEED_READ != 0)             // A
+    read_data();
+
+r = hi << 4 + low;                      // B
+
+while (c = getc(in) != EOF)             // C
+    putc(c, out);
+#+END_SRC
+A处先执行逻辑比较再进行位运算，B处先计算加法再计算移位，
+C处先比较getc()和EOF是否不相等，再把比较结果传递给变量c。
+很可能本意不是如此，因此这种情况最好用括号说明。
+
+括号是超越优先级的存在，运算符口诀如下：
+#+BEGIN_VERSE
+成员-单目-乘-加减，移位-大小-不相等，
+按位与-异-或-逻辑，三目-赋值-逗号低。
+#+END_VERSE
+- 成员 :: 包括四个运算符：() [] -> .
+     需要注意这里的括号是指函数调用，而不是通常意义的括号。
+
+*** 溢出
+#+BEGIN_SRC cpp
+if (a + b < 0)                          // A
+    printf("out of range\n");
+#+END_SRC
+A处企图用两个整型相加的结果为负来判断是否溢出，但是这样的方法并不正确，
+例如某些机器上溢出会产生一个溢出状态，此时的结果就不为负数。
+比较简单的方式是通过 =a > INT_MAX - b= 来判断，
+此外也可以将其转换为无符号整数来判断。
+
+*** 输入输出陷阱
+#+BEGIN_SRC cpp :includes <stdio.h>
+int i;
+char c;
+
+for (i = 0; i < 5; i++) {
+    scanf("%d", &c);
+    printf("%d ", i);
+}
+#+END_SRC
+
+这部分代码的关键问题是c被声明为char类型，而在输入时又当作整型数，会导致变量c附
+近的内存被覆盖。
+
+*** 自动变量
+#+BEGIN_SRC cpp
+#define BUFSIZE         1024
+int main()
+{
+    int c;
+    char buf[BUFSIZE];
+
+    setbuf(stdout, buf);
+    while((c = getchar()) != EOF)
+        putchar(c);
+
+    return 0;
+}
+#+END_SRC
+在main函数运行之后，将会刷新缓存，而此时作为自动变量的buf已经被释放了。
+可以通过将buf定义为静态变量避免这个问题。
+
+*** 函数原型
+#+BEGIN_SRC cpp
+int isvowel(c)
+    char c;
+{
+    return c == 'a' || c == 'e' || c == 'i' || c == 'o' ||
+        c == 'u';
+}
+#+END_SRC
+
+在很多库函数中能看到这样的写法，这种写法主要是为了与老的编译器兼容，
+老的编译器不支持指定函数参数类型，所以在传递参数时会默认转换为int，
+这种写法和如下写法等价。
+#+BEGIN_SRC cpp
+int isvowel(int i)
+{
+    char c = i;
+    return c == 'a' || c == 'e' || c == 'i' || c == 'o' ||
+        c == 'u';
+}
+#+END_SRC
+
+*** sizeof
+#+BEGIN_SRC cpp
+p = n * sizeof * q;                     // A
+apple = sizeof(int) * p;                // B
+#+END_SRC
+对于A处比较容易分析，因为sizeof运算符优先级低于解引用，
+等价于 =n * sizeof(*q)=。
+而B处可以计算强制转换后取sizeof和先取sizeof再做乘法，
+这里要考虑结合性，sizeof自然和int结合，再做乘法。
+这里还可以测试强制转换不可行，用 =sizeof(int)p= 来测试，
+你会发现根本编译不通过，就是因为(int)和sizeof已经结合完毕，
+故不再具有强制转换功能，除非添加括号修改优先级。
+
+*** errno
+不要在正常返回的情况下检查errno，因为即便所调用的函数返回正确，也可能在函数中又
+调用了其他函数，而其他函数有可能会设置errno。
+
+*** signal
+信号可能出现在某些复杂的库函数中，如果signal处理函数中再调用这样的函数，
+结果可能导致不堪设想的后果。
+
+假设malloc执行过程被一个信号中断，此时malloc用于追踪可用内存的数据结构可能只有
+部分更新，如果在signal处理函数中再调用malloc，就可能让malloc完全崩溃。
+
+同样在signal中使用longjmp也不安全，因为信号可能发生在malloc更新数据结构的过程中，
+因此signal处理函数能够做的安全的事情就是设置一个标志然后返回，期待主程序检查到
+这个标志。对于算术运算，这样也是不安全的，某些机器在信号处理函数返回时还会重新
+执行失败的操作，而我们又没有办法更新操作数，故此时唯一安全可移植的办法就是打印
+一条出错消息，然后用longjmp/exit退出程序。
+
+*** 宏
+不要对宏执行有副作用的代码。
+#+BEGIN_SRC cpp
+#define max(a, b) ((a) > (b) ? (a) : (b))
+
+int c = max(a++, ++b);                  // A
+
+#define TP struct table *
+TP a, b;                                // B
+
+#define a (x) sum(x)
+a(u);                                   // C
+
+#+END_SRC
+将A处展开之后变为 =(a++) > (++b) ? (a++) : (++b)= ，可能导致任意一个变量自增两次。
+在B处存在一个问题是变量a是指针，但是变量b不是指针。
+在C处扩展开是 =(x) sum(x)(u)= 不过好在通常编译不通过。
+
+一个典型的assert宏可以定义为如下形式。
+#+BEGIN_SRC cpp :includes <stdio.h>
+#define assert_err(x)                                           \
+    if (!x) printf("%s, %d: %s\n", __FILE__, __LINE__, #x)
+
+int init_value = 1;
+assert_err(init_value - 1);
+#+END_SRC
+
+如果一个宏当中包含多个语句，应当使用如下的形式。
+#+BEGIN_SRC cpp
+#define __set_TM1x(XI,V)                        \
+    do {                                        \
+        int shift = (XI) * 2 + 16;              \
+        unsigned long tm1 = __reg(0xfeff9808);  \
+        tm1 &= ~(0x3 << shift);                 \
+        tm1 |= (V) << shift;                    \
+        __reg(0xfeff9808) = tm1;                \
+        mb();                                   \
+    } while(0)
+#+END_SRC
+不能简单用大括号包围，因为遇到if-else语句就会打断if-else，
+这种情况只能用do-while包围。
+
+** 缺陷
+*** 整型数
+#+BEGIN_SRC cpp :includes '(<limits.h> <stdio.h>)
+printf("%d", INT_MAX);
+#+END_SRC
+
+右移位的时候，如果是一个负数，那么高位可能是由0填充，也可能是由符号位填充，
+因此可移植的办法是使用无符号类型来右移位。
+此外移位的数目应该要保证大于等于0，并且严格小于对象的位长。
+对于负数，右移一位并不等于除以2，举例来说，(-1) >> 1 一般不会是0，
+而(-1) / 2则为0。当然如果知道数值为非负，那么用移位来代替除法是没有问题的。
+
+** 特性
+*** inline
+如果编译器不优化，inline就是普通函数，更便于调试，
+调试好了之后采用优化重新编译，inline函数就像宏一样融入代码。
+
+*** attribute
+为了兼容老的代码，因为在早期inline不是关键字，
+gcc允许使用__inline__、__asm__等代替无下划线的形式。
+
+#+BEGIN_SRC cpp
+struct x86_hw_tss {
+    u32                     reserved1;
+    u64                     sp0;
+    u64                     sp1;
+    ...
+} __attribute__((packed)) ____cacheline_aligned;
+#+END_SRC
+- packed :: 表示成员字段不用对齐
+- ____cacheline_aligned :: 整个数据结构按照高速缓存行的大小对齐
+
+*** struct
+结构体的点操作符可以帮助我们访问结构的成员，反过来如果我们知道当前结构或数据类型属于某个结构体，
+也可以利用存储特性由成员获取结构体。
+举一个例子，请看如下代码。
+#+BEGIN_SRC cpp
+struct person {
+    char name[10];
+    int age;
+    int id;
+    struct infomation info;
+};
+
+struct person *get_person(struct infomation *info)
+{
+    // ?
+}
+
+int test_get_person(void)
+{
+    struct person p;
+    return &p == get_person(&p.info);
+}
+#+END_SRC
+在Linux内核中大量的运用到了get_person()这样的函数，或者说宏，
+因为使用量很大，所以都是以宏的形式实现。实现的关键思路就是在struct的表示中，
+成员地址相对于结构体的首地址偏移量是固定的。
+典型的宏定义如下。
+#+BEGIN_SRC cpp
+/**
+ ,* container_of - cast a member of a structure out to the containing structure
+ ,* @ptr:        the pointer to the member.
+ ,* @type:       the type of the container struct this is embedded in.
+ ,* @member:     the name of the member within the struct.
+ ,*
+ ,*/
+#define container_of(ptr, type, member) ({                              \
+            const typeof( ((type *)0)->member ) *__mptr = (ptr);        \
+            (type *)( (char *)__mptr - offsetof(type,member) );})
+#+END_SRC
+
+有了这个宏，问号处的代码就很清晰了，直接写 =return container_of(info, struct person, info)= 即可。
+** 常用库
+*** time
+最常用的 =time_t= 本质上就是一个有符号长整型。
+另外一个结构化的事件表述为 =tm=。
+#+BEGIN_SRC cpp
+struct tm {
+    int tm_sec;         /* seconds */
+    int tm_min;         /* minutes */
+    int tm_hour;        /* hours */
+    int tm_mday;        /* day of the month */
+    int tm_mon;         /* month */
+    int tm_year;        /* year */
+    int tm_wday;        /* day of the week */
+    int tm_yday;        /* day in the year */
+    int tm_isdst;       /* daylight saving time */
+};
+#+END_SRC
+常用函数如下：
+#+BEGIN_SRC cpp
+time_t time(time_t *timep);
+double difftime(time_t end, time_t beginning);
+char *ctime(const time_t *timep);
+char *ctime_r(const time_t *timep, char *buf);
+time_t mktime(struct tm *tm);
+struct tm *localtime(const time_t *timep);
+struct tm *localtime_r(const time_t *timep, struct tm *result);
+struct tm *gmtime(const time_t *timep);
+struct tm *gmtime_r(const time_t *timep, struct tm *result);
+char *asctime(const struct tm *tm);
+char *asctime_r(const struct tm *tm, char *buf);
+#+END_SRC
+- time :: 获取当前时间，如果参数不为空，会修改参数的值为当前时间
+- difftime :: 计算时间差，单位为秒
+- ctime :: 转换为字符串，有竞态风险
+- ctime_r :: 避免竞态，不一定可移植
+- mktime :: 时间格式转换
+- localtime :: 时间格式转换，有竞态风险
+- localtime_r :: 用于避免竞态，但是不一定可移植
+- gmtime :: 事件转换，有竞态风险
+- gmtime_r :: 避免竞态
+- asctime :: 转换为字符串，有竞态风险
+- asctime_r :: 避免竞态
+
+* 趣味习题
+
+** 语言概念
+
+*** 注释问题
+#+BEGIN_QUOTE
+C语言中使用 =/* ... */= 作为注释，设计一个在允许嵌套注释和不允许嵌套注释条件下
+都能通过编译的代码，但是在不同代码条件下执行结果不同。
+#+END_QUOTE
+
+#+BEGIN_SRC cpp
+int a = /*/*/0*/**/1;
+char *b = /*/**/"*/"/*"/**/;
+#+END_SRC
+
+| 变量 | 允许嵌套 | 不允许嵌套 |
+|------+----------+------------|
+| a    | 1        | 0          |
+| b    | "/*"     | "*/"       |
+
+*** 函数指针
+#+BEGIN_QUOTE
+（1） 如何调用地址为0的函数，假定函数无参数，无返回值。
+
+（2） signal函数接受两个参数，一个代表特定信号的整型数值，
+一个代表用户提供的函数指针，用户提供的函数只有一个整型的参数，无返回值。
+signal函数返回值和用户提供的函数类型相同。
+#+END_QUOTE
+#+BEGIN_SRC cpp
+(*(void (*)()) 0)();                      // (1)
+void (*signal(int, void (*)(int))) (int); // (2)
+#+END_SRC
+更加容易理解的写法如下。
+#+BEGIN_SRC cpp
+typedef void (*func0) ();               // (1)
+(*(func0)0) ();
+
+typedef void (*handler) (int);          // (2)
+handler signal(int, handler);
+#+END_SRC
+*** 存储表示
+#+BEGIN_SRC cpp :includes '(<stdio.h> <string.h>)
+char a[100];
+int i;
+
+for (i = 0; i < 1000; i++)
+    a[i] = -1 - i;
+printf("strlen %d\n", strlen(a));
+#+END_SRC
+
+这个代码实际考察的是补码的表示，正数和补码相同，负数最高位为1，
+其余位取反加1。
+结果上，=a[0] = -1=，也就是0xFF，=a[1] = -2=，也就是0xFE，
+依次类推，-127表示为0x81，－128表示为0x80，
+而 =a[128] = -129=，将推出最高位，表示为0x7F。
+再依次类推，=a[254] = 0x01=，=a[255] = 0x00=。
+故总长度为255。
+当然负数的表示可以更简单的计算为 =256n - x=，其中n是最小让表达式为正的数。
+本来0x80可以表示-0的，但是用来表示-128可以表示更广的范围。
+
+#+BEGIN_SRC cpp
+union {unsigned short s; unsigned char c[2];} u;
+u.c[0] = 0x12;
+u.c[1] = 0x34;
+printf("union %d\n", u.s);
+#+END_SRC
+如果是大端，0x1234，如果是小端，0x3412。
+
+*** 函数设计
+#+BEGIN_QUOTE
+将long整形以十进制输出，接口如下。
+
+void printnum(long n);
+#+END_QUOTE
+
+#+BEGIN_SRC cpp :includes <stdio.h>
+void printchar(char c)
+{
+    printf("%c", c);
+}
+void printnum(long n, char c)
+{
+    if (n < 0) {
+        printchar('-');
+        n = -n;
+    }
+
+    if (n >= 10)
+        printnum(n / 10, 0);
+
+    printchar(n % 10 + '0');
+
+    if (c)
+        printchar(c);
+}
+#define printn(n) printnum(n, '\n')
+int main()
+{
+    printn(0x192);
+    printn(-0x192);
+    return 0;
+}
+#+END_SRC
+
+
+

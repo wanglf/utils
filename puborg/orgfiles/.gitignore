@@ -1,0 +1,11 @@
+*.pdf
+*.aux
+*.pyg
+*.log
+*.out
+*.tex
+*.vrb
+*.tex~
+*.toc
+_minted-*/
+/build/

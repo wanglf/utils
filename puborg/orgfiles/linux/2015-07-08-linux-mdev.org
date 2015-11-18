@@ -1,0 +1,556 @@
+#+TITLE: Linux Mdev
+#+AUTHOR: Micky Ching
+#+OPTIONS: H:4 ^:nil
+#+LATEX_CLASS: latex-doc
+#+PAGE_TAGS: linux uevent mdev
+
+* 基本概念
+
+** 简介
+#+BEGIN_HTML
+<!--abstract-begin-->
+#+END_HTML
+
+mdev官方的叫法是mini udev in busybox，mdev实际只是busybox的一个符号链接。
+执行mdev -s时会扫描/sys/class和/sys/block中的所有目录，
+如果目录中有名为dev的文件，就从中读取设备号，并利用设备号在/dev下面创建节点。
+
+启动时需要设置热插拔处理程序为mdev，当有热插拔事件产生时，内核调用mdev。
+mdev通过环境变量ACTION和DEVPATH确定热插拔事件和影响目录，
+接着查看目录下是否有dev文件，并利用其信息创建/dev节点。
+如果ACTION为add，就会创建设备节点，如果为remove则删除设备节点。
+#+BEGIN_HTML
+<!--abstract-end-->
+#+END_HTML
+
+mdev通过判断路径字符串第6个字符串是否为c来判断是字符设备还是块设备，
+如path = "/sys/class/..."第6个字符为c，就被判断为字符设备，
+path = "/sys/devices/..."会被判断为块设备。
+所以写驱动只应当在/sys/class和/sys/block中创建设备属性文件。
+
+** 编译配置
+在busybox配置中加上mdev支持，此外如果要使用自动挂载功能，需要利用额外的脚本，
+也就是可能还需要其他常用工具，如grep、mount、sh等。
+
+另外在内核配置上面也要添加文件系统支持，包括语言支持，
+既然要用到mdev也需要热插拔支持。
+
+** 初始化脚本
+mdev有两个用途，一个是初始化扫描，一个是动态更新。
+mdev关键需要sysfs的支持，也就是必须要有/sys目录。
+在扫描的时候mdev会扫描/sys/class/.../dev文件，dev文件是包含设备号的文件，
+其所在的目录一般就对应为相关设备的属性目录。
+至于动态更新，需要在内核支持热插拔，当发现有插拔事件的时候，内核会发出通知，
+并调用hotplug程序，一般PC上是udev，嵌入式平台是mdev，
+通过写入如下文件来指定热插拔程序为mdev。
+#+BEGIN_SRC sh
+echo /bin/mdev > /proc/sys/kernel/hotplug
+#+END_SRC
+内核在调用热插拔处理程序的时候会传递一系列环境变量，在写mdev的配置文件时，
+也可以利用这里环境变量。
+
+在嵌入式平台，要支持mdev，首先要做的是配置系统启动设置，包括挂载必要的文件系统，
+以及设置hotplug程序。
+如下是一段典型的初始化脚本。
+#+BEGIN_SRC sh
+mount -t proc proc /proc                # 用于设定hotplug的文件系统
+mount -t sysfs sysfs /sys               # 用于mdev扫描的文件系统
+mount -t tmpfs -o size=64k,mode=0755 tmpfs /media # 用于挂载磁盘设备
+mount -t tmpfs -o size=64k,mode=0755 tmpfs /dev   # 用于创建设备节点
+echo /bin/mdev > /proc/sys/kernel/hotplug         # 设定hotplug程序
+mdev -s                                           # 启动扫描
+#+END_SRC
+
+如果文件系统在flash外运行，还需要先创建/dev/pts节点，再执行mdev的初始化脚本。
+#+BEGIN_SRC sh
+mkdir /dev/pts
+mount -t devpts devpts /dev/pts
+#+END_SRC
+
+也可以不通过procfs来设置hotplug程序，通过如下命令实现。
+#+BEGIN_SRC sh
+sysctl -w kernel.hotplug=/sbin/mdev
+#+END_SRC
+
+** 配置文件
+配置文件位于/etc/mdev.conf，语法分为四个部分。
+第1部分是匹配规则，也就是匹配到对应的设备，
+第2部分是用户ID和组ID，第3部分是权限，最后一部分是命令。
+
+文件格式如下：
+#+BEGIN_SRC sh
+[-][envmatch]<device_regex>        <uid>:<gid> <permissions> [cmd]
+[-][envmatch]@<maj[,min1[-min2]]>  <uid>:<gid> <permissions> [cmd]
+[-][envmatch]$envvar=<regex>       <uid>:<gid> <permissions> [cmd]
+[-][envmatch]subsystem/regex       <uid>:<gid> <permissions> [cmd]
+#+END_SRC
+- - ::
+  不要在匹配到该行就停止搜索
+- uid/gid ::
+  可以是数字也可以是名字
+
+其中"$envvar=<regex>"在热插拔设备需要模块载入时非常有用，因为此时没有驱动，
+也就不会存在/sys/class/.../dev文件，但是$MODALIAS会设置，表示需要的模块。
+可以使用如下规则，在需要模块的时候自动导入模块。
+#+BEGIN_SRC sh
+$MODALIAS=.* 0:0 660 @modprobe "$MODALIAS"
+#+END_SRC
+当/sys/class/.../dev出现的时候又会产生另一个热插拔事件给mdev处理。
+
+命令分两种，一种是控制设备节点生成路径，一种是执行外部shell命令，
+两者可以同时使用。
+
+*** 路径控制命令
+
+路径控制的命令格式为
+#+BEGIN_SRC sh
+[=>!]path
+#+END_SRC
+- = ::
+  仅仅移动路径，如果要移动到一个目录下面，在path后面一定要有一个斜杠"/"。
+- > ::
+  移动路径，并在dev下面创建一个符号链接
+- ! ::
+  禁止创建设备节点
+- %1..%9 ::
+  如果用了正则表达式，那么用该符号引用匹配到的表达式，
+  一个小括号作为一组，依次用%1..%9表示。
+
+简单示例如下。
+#+BEGIN_SRC sh
+hda 0:0 660 =drives/                    # 将hda移动到drives目录
+hdb 0:0 660 =cdrom                      # 将hdb命名为cdrom
+tty[a-z] 0:0 660 !                      # 利用!阻止创建设备节点
+([hs]d[a-z])            root:disk       660 >disk/%1/0
+([hs]d[a-z])([0-9]+)    root:disk       660 >disk/%1/%2
+mmcblk([0-9]+)          root:disk       660 >disk/mmc/%1/0
+mmcblk([0-9]+)p([0-9]+) root:disk       660 >disk/mmc/%1/%2
+(tun|tap)               root:network    660 >net/%1
+#+END_SRC
+
+*** 外部命令
+要执行外部命令，需要在特殊符号后面加上要执行的命令，特殊符号用于指示执行的时间。
+命令是通过system系统调用执行的，因此要确保有安装sh。
+命令会获取到两个环境变量，$SUBSYSTEM和$MDEV，$SUBSYSTEM表示设备所在的子系统，
+$MDEV为设备名字，如hda。
+#+BEGIN_SRC sh
+[@|$|*]<command>
+#+END_SRC
+- @ :: 在创建设备节点之后运行
+- $ :: 在移除设备节点之前运行
+- * :: 在创建设备节点之后，移除设备节点之前运行
+
+hotplug将stdout、stderr和stdin连接到/dev/null，
+因此在执行mdev的时候是看不到输出的。
+
+配置举例：
+#+BEGIN_VERSE
+- [[file:src/mdev/eg0-mdev.conf][eg0-mdev.conf]] [[https://github.com/slashbeast/mdev-like-a-boss][@github]]
+- [[file:src/mdev/eg1-mdev.conf][eg1-mdev.conf]] [[http://www.snafu.priv.at/interests/debian/mdev.html][@snafu]]
+- [[http://cross-lfs.org/view/clfs-embedded/arm/bootscripts/mdev.html][clfs mdev.conf]]
+#+END_VERSE
+
+** 固件
+所有的firmware需要放到/lib/firmware，运行的时候，内核调用mdev，并传递文件名，
+文件名是在源代码中直接指定的。
+
+** 顺序插拔
+内核并不会将热插拔事件顺序化，仅仅增加SEQNUM环境变量的值，
+mdev可能会按照不同的顺序处理热插拔事件。
+
+如果发现了/dev/mdev.seq那么就会和SEQNUM比较，有两秒钟的比较时间，
+如果不相同，会按照通常方式运行，并写入SEQNUM + 1。
+想要激活这个特性非常简单，执行如下命令。
+#+BEGIN_SRC sh
+echo > /dev/mdev.seq
+#+END_SRC
+就会会插入一个换行符，但是mdev足够聪明，它不会在这种情况下去等待两秒钟。
+
+** 热插拔配置
+插拔自动挂载需要先写一个脚本，假定脚本为[[file:src/mdev/automounter.sh][/lib/mdev/automounter.sh]]，
+并且要确保文件有可执行权限，内容如下。
+#+INCLUDE: src/mdev/automounter.sh src sh
+
+接着根据automounter.sh配置mdev.conf文件。
+#+BEGIN_SRC sh
+sd[a-z]           0:0     660
+mmcblk[0-9]       0:0     660
+sd[a-z][0-9]      0:0     660 */lib/mdev/automounter.sh
+mmcblk[0-9]p[0-9] 0:0     660 */lib/mdev/automounter.sh
+#+END_SRC
+
+此外还要修改一下/media目录文件系统类型，因为打算用它创建动态挂在点，
+所以最好将它用tmpfs从Flash移动到RAM中。
+可以通过上面提到的方法，写入到启动脚本，可以编辑/etc/fstab。
+#+BEGIN_SRC sh
+tmpfs         /media  tmpfs   defaults        0       0
+#+END_SRC
+
+如果存在/dev/mdev.log文件，调试信息将自动添加到该文件。
+
+* 源代码分析
+- 版本：[[http://git.busybox.net/busybox/tree/?h%3D1_22_stable][1.22.0]]
+  - [[http://git.busybox.net/busybox/tree/util-linux/mdev.c?h%3D1_22_stable][mdev.c]]
+
+** 消息打印
+*** 分级打印
+#+BEGIN_SRC cpp
+#if DEBUG_LVL >= 1
+# define dbg1(...) do { if (G.verbose) bb_error_msg(__VA_ARGS__); } while(0)
+#else
+# define dbg1(...) ((void)0)
+#endif
+#if DEBUG_LVL >= 2
+# define dbg2(...) do { if (G.verbose >= 2) bb_error_msg(__VA_ARGS__); } while(0)
+#else
+# define dbg2(...) ((void)0)
+#endif
+#if DEBUG_LVL >= 3
+# define dbg3(...) do { if (G.verbose >= 3) bb_error_msg(__VA_ARGS__); } while(0)
+#else
+# define dbg3(...) ((void)0)
+#endif
+#+END_SRC
+这段代码无非是定义了不同级别的打印。但是还是有些细节需要说明的。
+- ... :: 省略号用于传递可变参数，__VA_ARGS__用于解析可变参数。
+- G :: 在busybox的代码中，对G的定义随处可见，大多数源代码中都有一个叫G的宏，
+     在mdev.c中定义如下。
+#+BEGIN_SRC cpp
+#define G (*(struct globals*)&bb_common_bufsiz1)
+#+END_SRC
+很明显，这里的G就是一块全局的内存，只不过把它当作globals来使用。
+至于globals，和G的思路差不多，就是每个程序将其最重要的数据结构定义为globals，
+所以globals也是随处可见的。
+#+BEGIN_SRC cpp
+// <platform.h>
+#define ALIGNED(m) __attribute__ ((__aligned__(m)))
+// libbb/message.c
+char bb_common_bufsiz1[COMMON_BUFSIZE] ALIGNED(sizeof(long long));
+#+END_SRC
+属性操作符让让bb_common_bufsize1按照long long类型对齐，如果再纠结一下COMMON_BUFSIZE，
+可以看到它的定义是这样的。
+#+BEGIN_SRC cpp
+// <libbb.h>
+extern char bb_common_bufsiz1[COMMON_BUFSIZE];
+#ifndef BUFSIZ
+# define BUFSIZ 4096
+enum {
+    COMMON_BUFSIZE = (BUFSIZ >= 256 * sizeof(void*) ? BUFSIZ + 1 :
+                      256 * sizeof(void*))
+};
+#+END_SRC
+
+*** 消息打印函数
+最终要打印数据是要落实到bb_error_msg的，多数情况下打印代码都是写成宏的，
+这里的代码则是用函数来实现。
+#+BEGIN_SRC cpp
+void FAST_FUNC bb_error_msg(const char *s, ...)
+{
+    va_list p;
+
+    va_start(p, s);
+    bb_verror_msg(s, p, NULL);
+    va_end(p);
+}
+#+END_SRC
+解析可变参数的典型写法，如果这里看不明白，没有关系，接下来在下面一个函数详细分析。
+不过这里还有一个细节，FAST_FUNC，其实就是指定一些属性，不妨看看定义。
+#+BEGIN_SRC cpp
+/* FAST_FUNC is a qualifier which (possibly) makes function call faster
+ ,* and/or smaller by using modified ABI. It is usually only needed
+ ,* on non-static, busybox internal functions. Recent versions of gcc
+ ,* optimize statics automatically. FAST_FUNC on static is required
+ ,* only if you need to match a function pointer's type */
+#if __GNUC_PREREQ(3,0) && defined(i386) /* || defined(__x86_64__)? */
+/* stdcall makes callee to pop arguments from stack, not caller */
+# define FAST_FUNC __attribute__((regparm(3),stdcall))
+/* #elif ... - add your favorite arch today! */
+#else
+# define FAST_FUNC
+#endif
+#+END_SRC
+regparam用于告诉编译器要用几个寄存器来传递参数，在0x86上最大为3（EAX/EDX/ECX），
+多个attribute用逗号分割，注意不要在这里加上多余的空格，而顺序是无所谓的，
+可以将stdcall放在前面。
+
+#+BEGIN_SRC cpp -n
+void FAST_FUNC bb_verror_msg(const char *s, va_list p, const char* strerr)
+{
+    char *msg, *msg1;
+    int applet_len, strerr_len, msgeol_len, used;
+
+    if (!logmode)
+        return;
+
+    if (!s) /* nomsg[_and_die] uses NULL fmt */
+        s = ""; /* some libc don't like printf(NULL) */
+
+    used = vasprintf(&msg, s, p);
+    if (used < 0)
+        return;
+
+    /* This is ugly and costs +60 bytes compared to multiple
+     ,* fprintf's, but is guaranteed to do a single write.
+     ,* This is needed for e.g. httpd logging, when multiple
+     ,* children can produce log messages simultaneously. */
+
+    applet_len = strlen(applet_name) + 2; /* "applet: " */
+    strerr_len = strerr ? strlen(strerr) : 0;
+    msgeol_len = strlen(msg_eol);
+    /* can't use xrealloc: it calls error_msg on failure,
+     ,* that may result in a recursion */
+    /* +3 is for ": " before strerr and for terminating NUL */
+    msg1 = realloc(msg, applet_len + used + strerr_len + msgeol_len + 3);
+    if (!msg1) {
+        msg[used++] = '\n'; /* overwrites NUL */
+        applet_len = 0;
+    } else {
+        msg = msg1;
+        /* TODO: maybe use writev instead of memmoving? Need full_writev? */
+        memmove(msg + applet_len, msg, used);
+        used += applet_len;
+        strcpy(msg, applet_name);
+        msg[applet_len - 2] = ':';
+        msg[applet_len - 1] = ' ';
+        if (strerr) {
+            if (s[0]) { /* not perror_nomsg? */
+                msg[used++] = ':';
+                msg[used++] = ' ';
+            }
+            strcpy(&msg[used], strerr);
+            used += strerr_len;
+        }
+        strcpy(&msg[used], msg_eol);
+        used += msgeol_len;
+    }
+
+    if (logmode & LOGMODE_STDIO) {
+        fflush_all();
+        full_write(STDERR_FILENO, msg, used);
+    }
+#if ENABLE_FEATURE_SYSLOG
+    if (logmode & LOGMODE_SYSLOG) {
+        syslog(LOG_ERR, "%s", msg + applet_len);
+    }
+#endif
+    free(msg);
+}
+#+END_SRC
+- 6 :: logmode是一个全局变量，用于指示日志级别，或者说要将日志打印到哪里去。
+     包括LOGMODE_NONE、LOGMODE_STDIO、LOGMODE_SYSLOG、LOGMODE_BOTH
+- 9 :: 特殊处理NULL指针
+- 12 :: vasprintf和vsprintf唯一不同之处在于该函数会分配空间，
+     从传递&msg二级指针就应该想到该函数会修改指针msg。
+     另一方面vsprintf和sprintf的区别是v开头表示接收的参数是va_list类型。
+- 21 :: applet_name是全局变量
+- 23 :: 换行符定义，全局变量，默认为"\n"
+- 27 :: 增加额外格式信息到msg1中，故需要重新分配空间。
+- 28-30 :: 重新分配失败，不添加额外信息。
+- 31-48 :: 无非是将信息重组
+- 51-53 :: 刷新STDIO，full_write起始就是将msg写入到标准错误文件描述符，
+     由busybox自己定义，full_write保证足量写入，在遇到错误或EINTR时能够及时退出。
+- 56-57 :: 借助syslog()将信息打印到系统日志中去
+
+** 数据结构
+#+BEGIN_SRC cpp
+struct rule {
+    bool keep_matching;
+    bool regex_compiled;
+    mode_t mode;
+    int maj, min0, min1;
+    struct bb_uidgid_t ugid;
+    char *envvar;
+    char *ren_mov;
+    IF_FEATURE_MDEV_EXEC(char *r_cmd;)
+    regex_t match;
+    struct envmatch *envmatch;
+};
+#+END_SRC
+- IF_FEATURE_MDEV_EXEC :: 用于支持命令行，这个功能非常实用，建议开启，
+     要执行额外的脚本也需要该选项支持。后面认为是开启的，不再额外说明。
+- keep_matching :: 如果配置文件中以"-"作为开头，表示匹配完之后继续匹配，
+     此时会置起该成员。
+#+BEGIN_SRC cpp
+struct globals {
+    int root_major, root_minor;
+    smallint verbose;
+    char *subsystem;
+    char *subsys_env; /* for putenv("SUBSYSTEM=subsystem") */
+#if ENABLE_FEATURE_MDEV_CONF
+    const char *filename;
+    parser_t *parser;
+    struct rule **rule_vec;
+    unsigned rule_idx;
+#endif
+    struct rule cur_rule;
+    char timestr[sizeof("60.123456")];
+} FIX_ALIASING;
+#define G (*(struct globals*)&bb_common_bufsiz1)
+#define INIT_G() do {                                           \
+        IF_NOT_FEATURE_MDEV_CONF(G.cur_rule.maj = -1;)          \
+        IF_NOT_FEATURE_MDEV_CONF(G.cur_rule.mode = 0660;)       \
+} while (0)
+#+END_SRC
+- root_major/root_minor :: 根目录的主设备号/次设备号
+- ENABLE_FEATURE_MDEV_CONF ::
+     表示支持mdev.conf文件，对mdev的行为进行配置，
+     如果没有这个宏，很显然就无法按照用户的要求来工作，
+     也就是说一般都是需要开启的。
+     后面遇到这个宏就直接默认为是打开的，不再特别提示。
+- filename :: 这个文件就是配置文件mdev.conf，这个是写死的，只能是/etc/mdev.conf。
+
+#+BEGIN_SRC cpp
+#define MAX_SYSFS_DEPTH 3
+#define SCRATCH_SIZE 128
+#+END_SRC
+- MAX_SYSFS_DEPTH :: 最大支持扫描深度为3层，比方 =/sys/block/sda/sda1= 就已经到极限了，
+     再往下就不支持了。
+
+** 基本操作
+#+BEGIN_SRC cpp
+static void make_default_cur_rule(void)
+{
+    memset(&G.cur_rule, 0, sizeof(G.cur_rule));
+    G.cur_rule.maj = -1; /* "not a @major,minor rule" */
+    G.cur_rule.mode = 0660;
+}
+static void clean_up_cur_rule(void)
+#+END_SRC
+- clean_up_cur_rule :: 清除所有数据，并设置为默认值，
+     rule里面动态分配的存储也会释放。
+
+#+BEGIN_SRC cpp
+static char *parse_envmatch_pfx(char *val)
+{
+    struct envmatch **nextp = &G.cur_rule.envmatch;
+
+    for (;;) {
+        struct envmatch *e;
+        char *semicolon;
+        char *eq = strchr(val, '=');
+        if (!eq /* || eq == val? */)
+            return val;
+        if (endofname(val) != eq)
+            return val;
+        semicolon = strchr(eq, ';');
+        if (!semicolon)
+            return val;
+        /* ENVVAR=regex;... */
+        ,*nextp = e = xzalloc(sizeof(*e));
+        nextp = &e->next;
+        e->envname = xstrndup(val, eq - val);
+        ,*semicolon = '\0';
+        xregcomp(&e->match, eq + 1, REG_EXTENDED);
+        ,*semicolon = ';';
+        val = semicolon + 1;
+    }
+}
+#+END_SRC
+- 8 :: 查找val中的'='
+- 11 :: 确定val名字后面的第一个字符为eq，其实就是看'='前面的部分是不是合法的名字，
+     至于名字的定义和C/C++一样，
+     可以是下划线和字母开头，其它部分可以是下划线数字和字符。
+     辅助宏是如下这样的。
+#+BEGIN_SRC cpp
+#define is_name(c)      ((c) == '_' || isalpha((unsigned char)(c)))
+#define is_in_name(c)   ((c) == '_' || isalnum((unsigned char)(c)))
+#+END_SRC
+- 13 :: 查找val中的';'，因为环境变量是以分号分割的
+- 18 :: 很显然这里是构造一个单向链表，链表头由G.cur_rule.envmatch保存
+- 19 :: 将名字保存到e->envname中，由xstrndup负责分配空间
+- 20 & 22 :: 这样的写法比较好，免去了重新分配空间
+- 21 :: xregcomp实际是调用regcomp()函数，这个函数的作用是编译正则表达式，
+     以便regexec()执行搜索动作，REG_EXTENDED表示使用POSIX扩展正则表达式语法。
+
+** 复杂操作
+*** recursive_action
+#+BEGIN_SRC cpp
+typedef int FAST_FUNC (*fileAction)(const char *fileName,
+                                    struct stat *statbuf,
+                                    void* userData,
+                                    int depth);
+typedef int FAST_FUNC (*dirAction)(const char *fileName,
+                                   struct stat *statbuf,
+                                   void* userData,
+                                   int depth);
+
+int FAST_FUNC recursive_action(const char *fileName,
+                               unsigned flags,
+                               fileAction,
+                               dirAction,
+                               void* userData,
+                               unsigned depth);
+#+END_SRC
+
+*** make_device
+#+BEGIN_SRC cpp
+static void make_device(char *device_name, char *path, int operation);
+#+END_SRC
+
+** 主函数
+#+BEGIN_SRC cpp
+#define UNUSED_PARAM __attribute__ ((__unused__))
+int mdev_main(int argc UNUSED_PARAM, char **argv)
+#+END_SRC
+- UNUSED_PARAM :: 提示编译器这个参数不使用，不要报警。
+
+*** 分配/初始化变量
+#+BEGIN_SRC cpp
+#if ENABLE_FEATURE_BUFFERS_GO_ON_STACK
+#define RESERVE_CONFIG_BUFFER(buffer,len)  char buffer[len]
+#define RESERVE_CONFIG_UBUFFER(buffer,len) unsigned char buffer[len]
+#define RELEASE_CONFIG_BUFFER(buffer)      ((void)0)
+#else
+#if ENABLE_FEATURE_BUFFERS_GO_IN_BSS
+#define RESERVE_CONFIG_BUFFER(buffer,len)  static          char buffer[len]
+#define RESERVE_CONFIG_UBUFFER(buffer,len) static unsigned char buffer[len]
+#define RELEASE_CONFIG_BUFFER(buffer)      ((void)0)
+#else
+#define RESERVE_CONFIG_BUFFER(buffer,len)  char *buffer = xmalloc(len)
+#define RESERVE_CONFIG_UBUFFER(buffer,len) unsigned char *buffer = xmalloc(len)
+#define RELEASE_CONFIG_BUFFER(buffer)      free(buffer)
+#endif
+#endif
+
+RESERVE_CONFIG_BUFFER(temp, PATH_MAX + SCRATCH_SIZE);
+INIT_G();
+#if ENABLE_FEATURE_MDEV_CONF
+    G.filename = "/etc/mdev.conf";
+#endif
+#+END_SRC
+上面的宏无非是选择从哪个地方分配temp而已，PATH_MAX一般表示名字长度，256，
+而SCRATCH_SIZE则是mdev.c中定义的，128。
+
+#+BEGIN_SRC cpp
+umask(0);                               // 设置umask
+xchdir("/dev");                         // 切换到目录/dev
+#+END_SRC
+
+*** 扫描sysfs
+mdev程序只支持一个参数，如果这个参数为"-s"，那么就会执行扫描工作。
+- 初始化G（剩余参数，如rulue_vec，root_major/root_minor等）
+#+BEGIN_SRC cpp
+if (access("/sys/class/block", F_OK) != 0) {
+    /* Scan obsolete /sys/block only if /sys/class/block
+     ,* doesn't exist. Otherwise we'll have dupes.
+     ,* Also, do not complain if it doesn't exist.
+     ,* Some people configure kernel to have no blockdevs.
+     ,*/
+    recursive_action("/sys/block",
+                     ACTION_RECURSE | ACTION_FOLLOWLINKS | ACTION_QUIET,
+                     fileAction, dirAction, temp, 0);
+}
+recursive_action("/sys/class",
+                 ACTION_RECURSE | ACTION_FOLLOWLINKS,
+                 fileAction, dirAction, temp, 0);
+#+END_SRC
+现在系统大多都有 =/sys/class/block= 目录，因此很少需要扫描 =/sys/block= 目录了。
+
+*** 处理热插拔事件
+当mdev不是以"-s"参数调用时，说明内核发生了热插拔事件。
+mdev实际上只对两种事件作出反应，即add/remove，
+都是调用函数make_device()来创建或者删除设备节点。
+
+* 参考资料
+- [[http://git.busybox.net/busybox/tree/docs/mdev.txt][mdev官方文档]]
+- [[http://git.busybox.net/busybox/tree/util-linux/mdev.c][mdev源代码]]

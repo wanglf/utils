@@ -1,0 +1,253 @@
+#+TITLE: Redhat安装指南
+#+AUTHOR: Micky Ching
+#+OPTIONS: H:4 ^:nil
+#+LATEX_CLASS: latex-doc
+#+PAGE_TAGS: linux redhat
+
+* RHEL安装指南
+#+HTML: <!--abstract-begin-->
+
+RHEL的全称为Red Hat Enterprise Linux，面向商业市场，
+红帽公司对每个版本提供10年的技术支持，大约三年才发布一个新版本。
+相比于其它Linux发行版，RHEL是收费才能使用的。
+RHEL有三个发行版本，
+Client面向娱乐办公，Workstation面向开发程序，Server面向服务器。
+不论是哪个版本，在安装的时候都可以选择GUI软件包装上图形界面。
+
+#+HTML: <!--abstract-end-->
+
+安装过程中需要破解和更新，相关脚本通过如下命令获取：
+#+BEGIN_SRC sh
+git clone https://gitcafe.com/clone/rhtools.git
+#+END_SRC
+需要说明的是脚本中使用的是上海交大的源，如果希望使用中科大的源，
+请参考文档：[[https://lug.ustc.edu.cn/wiki/mirrors/help/centos][Centos镜像使用帮助]]。
+不过要将 =$releasever= 替换为对应的版本号，如RHEL7就替换为 =7=。
+
+** RHEL6安装指南
+*** 制作U盘启动盘
+下载ISO安装镜像：http://pan.baidu.com/s/1gdrLC8F#path=%252Fredhat_linux
+
+使用Ultraiso制作U盘启动盘：http://download.pcpop.com/shiyonggongju/guangqugongju/96645.html
+
+注意：如果之前用dd在U盘上写过镜像，需要清零：
+#+BEGIN_SRC sh
+dd if=/dev/zero of=/dev/sdx bs=4M count=1000
+#+END_SRC
+
+如果不清零，会出现错误：
+#+BEGIN_QUOTE
+Unknown Device : The installation source given by device['/dev/sdb1']
+could not be found. Please check your parameters and try again.
+#+END_QUOTE
+检查U盘信息可以得到如下结果：
+#+BEGIN_SRC sh
+$ blkid /dev/sdx
+LABEL="RHEL_..." TYPE="iso9660"
+$ blkid /dev/sdx1
+LABEL="RHEL_..." UUID="..." TYPE="vfat"
+#+END_SRC
+
+将安装镜像复制到U盘。
+
+*** 安装破解
+按提示安装即可，需要桌面环境的用户在最后选择安装软件的时候要选择
+=Desktop= 软件。
+
+执行 =rhtools/r6= 中的 =crack.sh= 完成破解并更新系统。
+
+** RHEL7安装指南
+
+*** 制作U盘启动盘
+下载ISO安装镜像：http://pan.baidu.com/s/1gdrLC8F#path=%252Fredhat_linux
+
+umount U盘并写入镜像，注意修改 =sdb= 为对应的U盘设备名：
+#+BEGIN_SRC sh
+dd if=disk.iso of=/dev/sdb bs=4M
+#+END_SRC
+
+*** 安装破解
+按提示安装即可，需要桌面环境的用户在最后选择安装软件的时候要选择
+=Desktop= 软件。
+
+执行 =rhtools/r7= 中的 =crack.sh= 完成破解并更新系统。
+
+* RHEL使用指南
+** 软件包管理
+*** yum命令
+#+BEGIN_SRC sh
+yum search <pkgname>                    # 搜索软件包
+yum install <pkgname>                   # 安装软件包
+yum update --skip-broken                # 更新系统
+#+END_SRC
+
+*** rpm命令
+#+BEGIN_SRC sh
+rpm -qa                                 # 查询所有安装的包
+rpm -qf <filename>                      # 查询文件属于哪个包
+rpm -qi <package>                       # 查询包的信息
+rpm -ql <package>                       # 列举包中的文件
+rpm -q --whatprovides <bar.so.2>        # 查询依赖包
+
+rpm -qip <package.rpm>                  # 查询未安装的包的信息
+rpm -qip <package.rpm>                  # 列举未安装的包的文件
+
+rpm -ivh <package.rpm>                  # 安装软件
+rpm -Uvh <package.rpm>                  # 更新软件
+rpm -ivh --replacepkgs <package.rpm>    # 替换性安装
+rpm -e <package>                        # 删除软件，不要加后缀
+rpm -q [options] <package>              # 查询软件信息
+rpm -V[fap] <package>                   # 验证软件包
+#+END_SRC
+
+如果安装过程出现如下提示，就需要加上 =--replacepkgs= 选项。
+#+BEGIN_SRC text
+Preparing...                ########################################### [100%]
+file /usr/bin/foo from install of foo-1.0-1 conflicts with file from package bar-2.0.20
+#+END_SRC
+
+如果安装过程中提示缺少依赖软件，可以用 =rpm -q --whatprovides= 查询所依赖的包的名字。
+
+查询可以提供的选项如下所示：
+| -f | 查询哪个软件包包含指定文件 |
+| -p | 查询指定的软件包           |
+| -i | 详细信息                   |
+| -l | 包含的文件列表             |
+| -s | 包含的文件状态             |
+| -d | 包含的文档文件             |
+| -c | 包含的配置文件             |
+
+*** yum-config-manager命令
+
+#+BEGIN_SRC sh
+yum-config-manager --add-repo repository_url # 添加仓库
+yum repolist all                             # 查看仓库列表
+yum-config-manager --enable repository...    # 启用仓库
+yum-config-manager --disable repository...   # 禁用仓库
+#+END_SRC
+
+** Linux内核开发
+*** 安装基本开发环境
+如果要开发驱动模块，就需要安装必要的内核开发环境，
+可以执行如下命令安装。
+#+BEGIN_SRC sh
+yum install gcc kernel-devel
+#+END_SRC
+
+*** 编译安装内核
+有时候为了重新配置内核，或者向内核添加驱动，
+就需要从源代码安装内核。
+
+在编译内核之前安装依赖软件包：
+#+BEGIN_SRC sh
+yum install rpm-build redhat-rpm-config asciidoc hmaccalc \
+    perl-ExtUtils-Embed pesign xmlto
+yum install audit-libs-devel binutils-devel elfutils-devel \
+    elfutils-libelf-devel
+yum install newt-devel numactl-devel pciutils-devel \
+    python-devel zlib-devel
+yum install gcc ncurses-devel
+#+END_SRC
+
+内核的rpm源码包可以从[[http://vault.centos.org/][CentOS server]]下载，找到对应的版本号，
+进入 =os/Source/SPackages/= 查找要下载的rpm包并下载。
+使用如下命令将内核源代码安装到 =~/rpmbuild/= 目录：
+#+BEGIN_SRC sh
+rpm -i kernel-3.10.0-123.el7.src.rpm
+#+END_SRC
+
+通过如下命令编译安装内核：
+#+BEGIN_SRC sh
+cd ~/rpmbuild/SPECS
+rpmbuild -bp --target=$(uname -m) kernel.spec # 生成源码树
+cd ~/rpmbuild/BUILD/<kernel-src>              # 进入源码树
+make menuconfig
+make
+make modules_install
+make install
+#+END_SRC
+
+** 常见问题
+*** 调整背光亮度
+#+BEGIN_SRC sh
+echo 5 > /sys/class/backlight/acpi_video0/brightness
+#+END_SRC
+输入的数字范围为0-10.
+*** 安装python-pip
+ref: [[http://sharadchhetri.com/2014/05/30/install-pip-centos-rhel-ubuntu-debian/][How to install pip on CentOS/RHEL/Ubuntu/Debian]]
+#+BEGIN_SRC sh
+yum install epel-release
+yum install -y python-pip
+#+END_SRC
+
+*** 安装vlc
+安装vlc需要添加nux-dextop源，添加成功之后执行 =yum install vlc= 即可安装，
+如果过程提示依赖文件无法安装，可能是基本的源缺少某些软件包，
+推荐换一下基本的源尝试，例如我用163的源安装不成功，换成sjtu的源就能成功了。
+
+*** 安装libQtWebkit.so.4
+也需要添加nux-dextop源，执行 =yum install qtwebkit-devel= 安装。
+
+*** 查看kernel日志
+#+BEGIN_SRC sh
+tail -f /var/log/messages
+#+END_SRC
+
+在内核日志量非常大的时候就会报出如下信息，然后就看不到日志了。
+#+BEGIN_QUOTE
+rsyslogd-2177: imjournal: begin to drop messages due to rate-limiting
+#+END_QUOTE
+
+详细信息请参考 [[https://bugzilla.redhat.com/show_bug.cgi?id%3D1123190][Bug 1123190]] ，要想查看所有日志，可以修改文件
+=/etc/systemd/journald.conf=。
+该文件具体参数的含义可以参考 [[http://www.freedesktop.org/software/systemd/man/journald.conf.html][journald.conf, journald.conf.d — Journal service configuration files]] ，
+或者 [[http://www.dsm.fordham.edu/cgi-bin/man-cgi.pl?topic%3Djournald.conf&ampsect%3D5][Man page journald.conf]]。
+- RateLimitInterval=, RateLimitBurst= ::
+     用于配置rate limiting，要想关闭rate limiting最直接的办法是将其中一个值设置为0。
+     其默认值如下所示。
+#+BEGIN_SRC sh
+  $RateLimitInterval=30s
+  $RateLimitBurst=1000
+#+END_SRC
+
+然后重启systemd-journald.service。
+#+BEGIN_SRC sh
+# systemctl restart systemd-journald.service
+service systemd-journald restart
+# systemctl restart rsyslog
+service rsyslog restart
+#+END_SRC
+
+如果出现如下错误信息，需要删除 =/var/lib/rsyslog/imjournal.state=，
+然后执行 =service rsyslog restart= 重启syslog。详情请参考[[https://bugzilla.redhat.com/show_bug.cgi?id%3D1088021][Bug 1088021]]。
+#+BEGIN_QUOTE
+rsyslog-2027: imjournal: fscanf on state file `/var/lib/rsyslog/imjournal.state' failed
+#+END_QUOTE
+
+*** 添加启动项
+如果是双系统安装，安装完成rhel之后，如果看不到Windows启动项，可以按照如下方法配置。
+创建并编辑文件 =/etc/grub.d/40_custom=。
+添加如下内容，注意(hd0,1)表示第一个分区，如果Windows不是装载第一个分区，
+需要相应的作出修改。
+#+BEGIN_SRC sh
+#!/bin/sh
+exec tail -n +3 $0
+# This file provides an easy way to add custom menu entries.  Simply type the
+# menu entries you want to add after this comment.  Be careful not to change
+# the 'exec tail' line above.
+menuentry 'Windows system' {
+         insmod part_msdos
+         insmod ntfs
+         insmod ntldr
+         set root=(hd0,1)
+         chainloader +1
+         boot
+}
+#+END_SRC
+添加好文件之后，执行如下命令更新grub配置，重启即可。
+#+BEGIN_SRC sh
+grub2-mkconfig -o /boot/grub2/grub.cfg
+#+END_SRC
+
+* 参考资料
+- [[http://wiki.centos.org/HowTos/I_need_the_Kernel_Source][I Need the Kernel Source]]

@@ -1,0 +1,21 @@
+#+TITLE: 关于
+#+AUTHOR: Micky Ching
+#+OPTIONS: H:4 ^:nil
+#+LATEX_CLASS: latex-doc
+#+PAGE_LAYOUT: body
+
+* 关于网站
+本网站基于 [[https://pages.github.com/][GitHub Pages]] 构建，页面文档主题基于 [[http://jekyllrb.com/][Jekyll]] 默认主题修改，
+演示文档主题基于 [[https://github.com/hakimel/reveal.js/][reveal.js]] 白色主题修改。
+所有文档采用 [[http://www.gnu.org/software/emacs/][Emacs]] [[http://orgmode.org/][org-mode]] 编写，数学公式借助 [[http://www.mathjax.org/][MathJax]] 显示。
+
+** 支持操作
+
+- 支持收起侧边栏
+  - 点击侧边栏和文档之间的空白区即可收起或打开侧边栏
+- 支持详细目录
+  - 按键 =t= 可显示或隐藏详细目录
+- 支持文档折叠
+  - 按键 =f= 用于折叠或展开文档全文
+  - 鼠标点击章节标题即可折叠或展开当前章节
+

@@ -1,0 +1,176 @@
+#+TITLE: Emacs Tags
+#+AUTHOR: Micky Ching
+#+OPTIONS: H:4 ^:nil
+#+LATEX_CLASS: latex-doc
+#+PAGE_TAGS: emacs
+
+* GNU GLOBAL
+#+HTML: <!--abstract-begin-->
+
+GNU global标签系统可以在Emacs、Vim、网页浏览器等不同平台使用，
+能够快速的定位到各种对象，特别适合一个项目下包含大量子目录，
+有很多#ifdef和main()函数这样的情况。
+相比与ctags/etags的好处是不依赖于特定编辑器，并且能够区分定义和引用。
+但是只兼容UNIX(POSIX)系统，内建解析器只支持6种语言，
+包括C/C++、Yacc、Java、PHP4和汇编。
+通过Pygments加Exuberant Ctags插件可以支持到25种语言。
+
+#+HTML: <!--abstract-end-->
+
+** GNU global基本用法
+我们以Linux内核源代码为例，首先进入到源代码根目录，创建标签。
+#+BEGIN_SRC sh
+gtags
+#+END_SRC
+接下来可以查看一下生成的索引文件。
+#+BEGIN_SRC sh
+$ ls -lh G*                                        # linux-3.19
+-rw-r--r-- 1 micky micky 8.9M 12月 20 09:22 GPATH  # 标签路径
+-rw-r--r-- 1 micky micky 198M 12月 20 09:27 GRTAGS # 标签引用
+-rw-r--r-- 1 micky micky 118M 12月 20 09:31 GSYMS  # 其他符号
+-rw-r--r-- 1 micky micky 175M 12月 20 09:22 GTAGS  # 标签对象
+#+END_SRC
+
+*** 基本语法
+#+BEGIN_SRC sh
+global [-aGilnqrstTvx][-e] pattern
+global -c[qrsv] prefix
+global -f[anqrstvx] files
+global -g[aGilnoOqtvx][-e] pattern
+global -I[ailnqtvx][-e] pattern
+global -P[aGilnoOqtvx][-e] pattern
+global -p[qrv]
+global -u[qv]
+#+END_SRC
+- 基本命令
+  - <no command> pattern :: 查找匹配指定规则对象
+  - -g, --grep pattern :: 查找所有匹配指定规则的行
+  - -I, --idutils pattern :: 查找所有匹配指定规则的行（使用idutils工具）
+  - -c, --completion [prefix] :: 查找以prefix开头的对象，
+       我们可以用这个命令来补全。
+  - -f, --file files :: 打印指定文件中的所有对象
+  - -P, --path [pattern] :: 打印匹配的路径
+  - -u, --update :: 增量更新标签库
+
+- 基本选项
+  | a | 绝对路径名                               |
+  | e | 使用指定规则，如可以保护减号不被省略     |
+  | G | 使用基本正则表达式，默认为扩展正则表达式 |
+  | i | 忽略大小写                               |
+  | l | 只查找当前目录下                         |
+  | n | 支持排序和路径转换                       |
+  | O | 只在源代码外查找，需要和-g/-P配合        |
+  | o | 在源代码和非源代码查找                   |
+  | q | 安静模式                                 |
+  | r | 引用查找                                 |
+  | s | 符号查找                                 |
+  | T | 在找到时不停止，继续查找全部对象         |
+  | t | 按标准ctags格式打印                      |
+  | x | 打印详细信息                             |
+
+** globash
+这个命令非常好用，进入界面之后就不用每次输入命令都要加一个global。
+命令也不用加上减号，特殊命令 =_= 用来执行最后一条命令，
+其实一般也不需要使用这个命令，因为大多shell都支持用UP键来获取上一条命令。
+
+#+BEGIN_SRC text
+- Tag search command:
+ (-l: use less(1) instead of tag stack.)
+       x [-l][pattern] - locate function definitions.
+       r [-l][pattern] - locate function references.
+       s [-l][pattern] - locate other symbols.
+       g [-l][pattern] - locate pattern using grep(1).
+       P [-l][pattern] - locate file include pattern.
+       I [-l][pattern] - locate pattern using idutils(1).
+       f [-l][file]    - locate function definitions in a file.
+       (By default, the previous value is used for pattern and file.)
+       list            - print tag list.
+       tags            - print tag stack.
+
+       ,* The x, r and s command doesn't refer to GTAGSLIBPATH.
+         Use global -x, -r or -s, instead.
+
+- Tag selection command:
+       You can specify a editor statically by EDITOR environment
+       variable or temporarily by option.
+       (-l: less, -v: vi, -e: emacs, -g:gozilla, -n: no editor)
+       show [-l|-v|-e|-g|-n][<no>|first|last]
+                       - view specified (default=current) tag.
+       first [-l|-v|-e|-g|-n]
+                       - view the first tag.
+       last  [-l|-v|-e|-g|-n]
+                       - view the last tag.
+       next  [-l|-v|-e|-g|-n][<no>]
+                       - view nth (default=1) next tag.
+       prev  [-l|-v|-e|-g|-n][<no>]
+                       - view nth (default=1) previous tag.
+
+- Tag marker command:
+       You can move to the marked tag even if there is no stack.
+       mark            - mark current tag.
+       mark -l         - print marker list.
+       mark -e         - edit marker list.
+       mark <no>       - edit marked file.
+
+- Cookie command:
+       Once you drop cookie, you can warp to the place at any time.
+       cookie          - drop cookie.
+       cookie -l       - print cookie list.
+       cookie -e       - edit cookie list.
+       cookie <no>     - warp to the specified cookie.
+       warp [<no>]     - warp to the specified (default=1) cookie.
+
+- Other commands:
+       ghelp           - you are seeing now.
+
+- Standard aliases:
+       <n> (n=1-999)   - show <n>
+       ..              - cd ..
+       ..<n> (n=1-5)   - cd .. (* <n> times)
+       l,t,n,p,.,c,m   - list,tags,next,prev,show,cookie,mark
+       '\C-t'          - pop
+#+END_SRC
+
+* Emacs gtags
+** 查找定义和引用
+查找定义默认绑定到按键 =M-.= ，查找结果如下图所示。
+如果查找时光标所在位置有字符，默认就是查找光标指定的字符串，
+当然也可以在提示中输入其他字符串。
+如果在 =#include= 中查找，那么默认会去查找光标处的文件。
+如果光标处本身就是一个定义，那么就会去查找引用。
+
+file:fig/gtags/gtags-define.png
+
+在此时可以用按键 =M-p= 和 =M-n= 上下移动，
+按键 =M-<= 和 =M->= 分别用于定位到第一个标签和最后一个标签。
+按键 =M-*= 用于出栈。
+
+此外按键 =C-M-.= 也是查找定义，不过支持正则表达式。
+
+可以使用 =M-]= 查找引用，如下图所示。
+
+file:fig/gtags/gtags-reference.png
+
+** 快捷键
+可以用 =C-h m= 帮助信息查看gtags-mode支持的快捷键，如下表所示。
+| M-.       | ggtags-find-tag-dwim            |
+| M-]       | ggtags-find-reference           |
+| C-M-.     | ggtags-find-tag-regexp          |
+| C-c M-SPC | ggtags-save-to-register         |
+| C-c M-%   | ggtags-query-replace            |
+| C-c M-/   | ggtags-view-search-history      |
+| C-c M-?   | ggtags-show-definition          |
+| C-c M-b   | ggtags-browse-file-as-hypertext |
+| C-c M-f   | ggtags-find-file                |
+| C-c M-g   | ggtags-grep                     |
+| C-c M-h   | ggtags-view-tag-history         |
+| C-c M-i   | ggtags-idutils-query            |
+| C-c M-j   | ggtags-visit-project-root       |
+| C-c M-k   | ggtags-kill-file-buffers        |
+| C-c M-n   | ggtags-next-mark                |
+| C-c M-o   | ggtags-find-other-symbol        |
+| C-c M-p   | ggtags-prev-mark                |
+| C-c M-DEL | ggtags-delete-tags              |
+
+* 参考资料
+- [[http://www.gnu.org/software/global/globaldoc_toc.html][GNU GLOBAL Source Code Tag System]]

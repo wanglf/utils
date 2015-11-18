@@ -1,0 +1,54 @@
+#+TITLE: Setup local yum repo for centos 7
+#+AUTHOR: wanglifeng
+#+OPTIONS: H:4 ^:nil
+#+LATEX_CLASS: latex-doc
+#+PAGE_TAGS: yum
+#+PAGE_CATETORIES: sa
+#+PAGE_LAYOUT: post
+
+* 服务器端设置
+** 准备工作
+#+BEGIN_SRC sh
+yum -y install createrepo
+mkdir -p /var/www/html/repos/centos/7/1
+createrepo /var/www/html/repos/centos/7/1
+ls -lR /var/www/html/repos/centos/7/1
+#+END_SRC
+
+** rsync从镜像同步数据
+#+BEGIN_SRC sh
+rsync -avz rsync://mirrors.yun-idc.com/centos/7.1.1503/os/x86_64/ /var/www/html/repos/centos/7/1/
+du -sch /var/www/html/repos/centos/7/1
+createrepo --update /var/www/html/repos/centos/7/1
+#+END_SRC
+
+** nginx web服务器增加如下配置
+
+#+BEGIN_EXAMPLE
+location /repos {
+  root   /var/www/html;
+  autoindex on;
+}
+#+END_EXAMPLE
+
+open browser, try http://hostname/repos
+
+** 定期同步
+#+BEGIN_EXAMPLE
+30 2 * * * rsync -avz rsync://mirrors.yun-idc.com/centos/7.1.1503/os/x86_64/ /var/www/html/repos/centos/7/1/ >> /var/log/rsyncrepo.log
+#+END_EXAMPLE
+
+* 客户端设置
+
+#+BEGIN_SRC sh
+mv /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo.bak
+vi /etc/yum.repos.d/local.repo
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+[localrepo]
+name=Local Repo
+baseurl=http://localrepo/repos/centos/7/1/
+gpgcheck=1
+gpgkey=http://localrepo/repos/centos/7/1/RPM-GPG-KEY-CentOS-7
+#+END_EXAMPLE
