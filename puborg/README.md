@@ -2,6 +2,8 @@
 
 A program used to pub emacs org-files as html files
 
+clone from https://github.com/mickyching
+
 #Prerequisite
 
 1. emacs >= 24.0
@@ -23,7 +25,10 @@ A program used to pub emacs org-files as html files
 - From the command line:
   Run emacs without loading the init file: emacs -q
 - In emacs:
+
   run C-u M-x org-reload
+
   Use package-list-packages to uninstall org: select it then d x
+
   Use package-list-packages to reinstall org: select it then i x
 
