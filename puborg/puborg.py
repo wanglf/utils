@@ -179,10 +179,10 @@ class puborg(object):
         self.temp_html = ".html"
         self.temp_latex = ".latex"
 
-        self.path_jekyll = rpath("build/jekyll")
-        self.path_jekyll_menu = rpath("build/jekyll/menu")
-        self.path_reveal = rpath("build/reveal")
-        self.path_latex = rpath("build/latex")
+        self.path_jekyll = rpath("/var/www/www.wanglifeng.info")
+        self.path_jekyll_menu = rpath("/var/www/www.wanglifeng.info/menu")
+        self.path_reveal = rpath("/var/www/www.wanglifeng.info/reveal")
+        self.path_latex = rpath("/var/www/www.wanglifeng.info/latex")
 
     def set_output(self, output):
         if output:
