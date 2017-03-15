@@ -1,8 +1,8 @@
-#README#
+* README
 
 repo of some useful scripts or DIY tools
 
-#Log#
+* Log
 
 - 2015-11-17 add puborg directory which contain scripts to build jekyll blog site from emacs org-mode files
 

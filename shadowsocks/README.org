@@ -1,28 +1,24 @@
-#Shadowsocks#
+* Shadowsocks
 A fast tunnel proxy that helps you bypass firewalls.
 
-#INSTALL#
-##CentOS Server##
-
-```
+* INSTALL
+** CentOS Server
+#+BEGIN_SRC sh
 yum install python-setuptools && easy_install pip
 pip install shadowsocks
-```
+#+END_SRC
 
-#Start#
-
-```
+* Start
+#+BEGIN_SRC sh
 ssserver -p 443 -k password -m aes-256-cfb -d start
-```
+#+END_SRC
 
-#Stop#
-
-```
+* Stop
+#+BEGIN_SRC sh
 sserver -d stop
-```
+#+END_SRC
 
-#Linux client#
-
-```
+* Linux client
+#+BEGIN_SRC sh
 sslocal -s srvip -p 443 -b 0.0.0.0 -l 1080 -k password -t 600 -m aes-256-cfb
-```
+#+END_SRC
